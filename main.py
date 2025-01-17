@@ -76,8 +76,8 @@ class ModmailView(discord.ui.View):
 		}
 
 		embed = discord.Embed(
-			title="Resolved Issue",
-			description="\n> The issue is now resolved.\n> \n> Only staff have access to the channel now.",
+			title="✅ Resolved Issue",
+			description="\n> The issue is resolved.\n> \n> Only staff have access to the channel now.",
 			color=colors["yellow"]
 		)
 		embed.set_footer(
@@ -112,7 +112,7 @@ class ModmailView(discord.ui.View):
 			return
 
 		embed = discord.Embed(
-			title="Channel Deletion",
+			title="🚫 Channel Deletion",
 			description="> This channel will be deleted in a few seconds.",
 			color=colors["red"]
 		)
@@ -277,7 +277,7 @@ async def on_message(message):
 					reason="Modmail channel creation"
 				)
 				embed = discord.Embed(
-					title="Modmail Thread",
+					title="📃 Modmail Thread",
 					description=f"> Modmail initiated by {message.author.mention}. \n> \n> Please describe your issue and how we can assist you.",
 					color=colors["blue"]
 				)
@@ -290,7 +290,7 @@ async def on_message(message):
 
 				# Notify the user
 				embed = discord.Embed(
-					title="ShedMail",
+					title="📃 ModMail",
 					description=f"> A modmail has been created, click below to view the ticket:\n> \n> {channel.mention}",
 					color=colors["green"]
 				)
@@ -306,14 +306,14 @@ async def on_message(message):
 			elif message.content.strip().lower() == "help":
 
 				embed = discord.Embed(
-					title="Hello! I am ShedMail, Your friendly modmail bot!",
+					title="🆘 Hello! I am at yor service!",
 					description="\n> My job is to allow you to message staff! \n> \n> Simply type the word **'contact'** and the staff will be notified!",
 					color=colors["yellow"]
 				)
 				embed.set_footer(
 					text="This message was written by server staff.",
 				)
-				await message.author.send(f"### {message.author.mention} ShedMail, here to help!", embed=embed)
+				await message.author.send(f"### {message.author.mention} Here to help!", embed=embed)
 
 			# ======================================================================================================================================================================================
 			# Bot event for messages
@@ -322,7 +322,7 @@ async def on_message(message):
 			else:
 
 				embed = discord.Embed(
-					title="Unknown Command!",
+					title="👎 Unknown Command!",
 					description="\n> Type **'help'** for assistance",
 					color=colors["red"]
 				)
@@ -342,7 +342,7 @@ async def on_message(message):
 async def on_member_join(member):
 	try:
 		embed = discord.Embed(
-			title="Welcome!",
+			title="🎉 Welcome!",
 			description=f"> Thank you for joining {member.guild.name}!\n> We're happy to get the chance to chat with you!\n> \n> - Make sure to check out the Rules:\n> {RULES_CHANNEL}\n> \n> - Chat and Enjoy our wonderful server",
 			color=colors["gold"]
 		)
@@ -362,7 +362,7 @@ async def on_member_join(member):
 	wlcmchannel = bot.get_channel(WELCOME_CHANNEL)
 	# Create the embed
 	embed = discord.Embed(
-		title="Welcome to the Server!",
+		title="🎉 Welcome to the Server!",
 		description=(
 			f"> Hey {member.mention}, welcome to **{member.guild.name}**!\n"
 			f"> We're so excited to have you here!\n> \n"
@@ -375,7 +375,7 @@ async def on_member_join(member):
 		text=f"Member #{len(member.guild.members)}",
 	)
 	# Send the embed in the channel
-	await wlcmchannel.send(embed=embed)
+	await wlcmchannel.send(f"{member.mention}", embed=embed)
 
 	# ======================================================================================================================================================================================
 	# Bot Event for memmber joins:
@@ -481,19 +481,22 @@ async def on_error(event):
 
 @bot.event
 async def on_message_delete(message):
-	if message.guild:  # Check if the message was in a guild (not a DM)
-		logger.info(f"Message from {message.author} deleted in #{message.channel}: '{message.content}'")
-
-		embed = discord.Embed(
-			title=f"Message from {message.author} deleted in {message.channel}",
-			description=f"> {message.content}",
-			color=colors["red"]
-		)
-
-		# Send embed in text-logs channel
-		await text_log_channel.send(embed=embed)
-	else:
+	if message.author.bot:
 		return
+	else:
+		if message.guild:  # Check if the message was in a guild (not a DM)
+			logger.info(f"Message from {message.author} deleted in #{message.channel}: '{message.content}'")
+
+			embed = discord.Embed(
+				title=f"Message from {message.author} deleted in {message.channel}",
+				description=f"> {message.content}",
+				color=colors["red"]
+			)
+
+			# Send embed in text-logs channel
+			await text_log_channel.send(embed=embed)
+		else:
+			return
 
 
 # ======================================================================================================================================================================================
@@ -501,27 +504,30 @@ async def on_message_delete(message):
 
 @bot.event
 async def on_message_edit(before, after):
-	if before.guild:  # Check if the message was in a guild (not a DM)
-		logger.info(
-			f"Message from {before.author} edited in #{before.channel}:\n"
-			f"- Before: '{before.content}'\n"
-			f"- After: '{after.content}'"
-		)
-
-		embed = discord.Embed(
-			title=f"Message from {before.author} deleted in {after.channel}",
-			description=(
-				f"Message from {before.author} edited in #{before.channel}:\n"
-				f"> - Before: '{before.content}'\n"
-				f"> - After: '{after.content}'"
-			),
-			color=colors["yellow"]
-		)
-
-		# Send embed in text-logs channel
-		await text_log_channel.send(embed=embed)
-	else:
+	if before.author.bot:
 		return
+	else:
+		if before.guild:  # Check if the message was in a guild (not a DM)
+			logger.info(
+				f"Message from {before.author} edited in #{before.channel}:\n"
+				f"- Before: '{before.content}'\n"
+				f"- After: '{after.content}'"
+			)
+
+			embed = discord.Embed(
+				title=f"Message from {before.author} deleted in {after.channel}",
+				description=(
+					f"Message from {before.author} edited in #{before.channel}:\n"
+					f"> - Before: '{before.content}'\n"
+					f"> - After: '{after.content}'"
+				),
+				color=colors["yellow"]
+			)
+
+			# Send embed in text-logs channel
+			await text_log_channel.send(embed=embed)
+		else:
+			return
 
 
 # ======================================================================================================================================================================================
@@ -536,7 +542,7 @@ async def version(ctx: discord.ext.commands.Context):
 	if has_role:
 
 		embed = discord.Embed(
-			title="Version",
+			title="🔔 Version",
 			description=f"> You are currently using {VERSION}\n> \n> Released on {VERSION_DATE}",
 			color=colors["fuchsia"]
 		)
@@ -545,33 +551,55 @@ async def version(ctx: discord.ext.commands.Context):
 		)
 
 		await ctx.channel.send(f"### {ctx.author.mention} Version and Support:", embed=embed, delete_after=10)
+
+		# Log the command use
+		logger.info(f"{ctx.author.mention} triggered the 'version' command in {ctx.channel}. Output sent.")
 	else:
 		await ctx.channel.send(f"{ctx.author.mention} You don't have permission to run this command.", delete_after=5)
+		logger.info(f"{ctx.author} triggered the topic command in {ctx.channel}. Output not sent due to lack of permissions.")
 
 
 # ======================================================================================================================================================================================
 # Slap Command
 
 @bot.command()
-async def slap(ctx: discord.ext.commands.Context, member: discord.Member):
-	await ctx.message.delete()
+async def slap(ctx: discord.ext.commands.Context, member: discord.Member = None):
+    await ctx.message.delete()
 
-	# List of slap GIF URLs
-	slap_gifs = json.load(open("assets/slaps.json", "r"))
+    # Check if a user is mentioned
+    if not member:
+        # Create an embed for invalid command usage
+        embed = discord.Embed(
+            title="🙁 Invalid Command",
+            description=" \n> You must mention a user when using the `!slap` command.\n> \n> Proper usage is '!slap @user' \n",
+            color=colors["red"]
+		)
+        embed.set_footer(text="This message was written by server staff.")
+        logger.info(f"{ctx.author} triggered the slap command in {ctx.channel}. Output not sent due to no mention.")
 
-	# Randomly select a slap GIF
-	selected_gif = random.choice(slap_gifs)
+        # Send the embed as a reply
+        await ctx.send(f"### {ctx.author.mention}",embed=embed, delete_after=10)  # Auto-delete after 10 seconds
+        return
 
-	# Create the embed
-	embed = discord.Embed(
-		title="Slap!",
-		description=f"\n> **{ctx.author.mention} slapped {member.mention}!**\n",
-		color=colors["purple"]
-	)
-	embed.set_image(url=selected_gif)
+    # List of slap GIF URLs
+    slap_gifs = json.load(open("assets/slaps.json", "r"))
 
-	# Send the embed
-	await ctx.send(f"### {member.mention} Got Slapped!", embed=embed)
+    # Randomly select a slap GIF
+    selected_gif = random.choice(slap_gifs)
+
+    # Create the embed for the slap action
+    embed = discord.Embed(
+        title="✋ Slap!",
+        description=f"\n> **{ctx.author.mention} slapped {member.mention}!**\n",
+        color=colors["purple"]
+    )
+    embed.set_image(url=selected_gif)
+
+    # Send the embed
+    await ctx.send(f"### {member.mention} Got Slapped!", embed=embed)
+
+    # Log the command use
+    logger.info(f"{ctx.author} triggered the 'slap' command in {ctx.channel}. Output sent.")
 
 
 # ======================================================================================================================================================================================
@@ -592,22 +620,24 @@ async def topic(ctx: discord.ext.commands.Context):
 
 		# Create an embed
 		embed = discord.Embed(
-			title="Let's Talk About...",
+			title="💬 Let's Talk About...",
 			description=f" \n> **{selected_topic}**\n",
 			color=colors["gold"]
 		)
 		embed.set_footer(text="Enjoy the discussion!")
 
 		# Send the embed
-		await ctx.send(f"### Let's Yap!", embed=embed)
+		await ctx.send(f"### {ctx.author.mention} Wants to Yap!", embed=embed)
 
 		# Move to the next topic
 		current_index += 1
+
+		logger.info(f"{ctx.author} triggered the 'topic' command in {ctx.channel}. Output sent.")
 	else:
 		# Reset or notify users that topics are finished
 		await ctx.send("All topics have been discussed! Restarting...")
+		logger.info(f"{ctx.author} triggered the topic command in {ctx.channel} (restarting). Output sent.")
 		current_index = 0  # Reset to the beginning
-
 
 # ======================================================================================================================================================================================
 # Run the bot
