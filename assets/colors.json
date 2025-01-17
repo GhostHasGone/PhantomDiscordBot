@@ -21,5 +21,6 @@
     "lighter_gray": 10070709,
     "fuchsia": 15418782,
     "dark_theme": 2895667,
-    "black": 0
+    "black": 0,
+    "white": 255255255
 }

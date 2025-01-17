@@ -1,8 +1,8 @@
 # ©2025 GhostHasGone
 # Add 'ghosthasgone' on Discord for support or inquiries.
 
-VERSION = "1.0.0"
-VERSION_DATE = "January 16th, 2025"
+VERSION = "1.0.1"
+VERSION_DATE = "January 17th, 2025"
 
 # ======================================================================================================================================================================================
 # Imports
@@ -58,23 +58,17 @@ bot = commands.Bot(command_prefix="!", intents=discord.Intents.all())
 # Part One: "Resolved"
 
 class ModmailView(discord.ui.View):
-	"""
-	Provides the modmail view which includes the resolved and close buttons.
-	"""
+
+	# Provides the modmail view which includes the resolved and close buttons.
+
 	def __init__(self, guild: discord.Guild, allowed_roles: list[int]):
-		"""
-		:param guild: The Discord Guild object (discord.Guild)
-		:param allowed_roles: All the allowed role ID's. REMOVING their read and write access.
-		"""
+
 		super().__init__(timeout=None)
 		self.guild = guild
 		self.allowed_roles = allowed_roles
 
 	@discord.ui.button(label="Resolved", style=discord.ButtonStyle.success)
 	async def resolved_button(self, interaction: discord.Interaction, button: discord.ui.Button):
-		"""
-		Discord Button Object - Used to mark a modmail channel as resolved
-		"""
 
 		# Update permissions to restrict access to staff only
 		overwrites = {
@@ -84,7 +78,7 @@ class ModmailView(discord.ui.View):
 		embed = discord.Embed(
 			title="Resolved Issue",
 			description="\n> The issue is now resolved.\n> \n> Only staff have access to the channel now.",
-			color=discord.Color.yellow()
+			color=colors["yellow"]
 		)
 		embed.set_footer(
 			text="This message was written by server staff.",
@@ -111,9 +105,7 @@ class ModmailView(discord.ui.View):
 
 	@discord.ui.button(label="Close", style=discord.ButtonStyle.danger)
 	async def close_button(self, interaction: discord.Interaction, button: discord.ui.Button):
-		"""
-		Discord Button Object - Used to mark a modmail channel as closed
-		"""
+
 		# Check if the user has permission to use this button
 		if not any(role.id in self.allowed_roles for role in interaction.user.roles):
 			await interaction.response.send_message("You don't have permission to close this thread.", ephemeral=True)
@@ -122,7 +114,7 @@ class ModmailView(discord.ui.View):
 		embed = discord.Embed(
 			title="Channel Deletion",
 			description="> This channel will be deleted in a few seconds.",
-			color=discord.Color.red()
+			color=colors["red"]
 		)
 		embed.set_footer(
 			text="This message was written by server staff.",
@@ -205,7 +197,7 @@ async def on_message(message):
 			embed = discord.Embed(
 				title=f"Message from {message.author} in {message.channel}",
 				description=f"> {message.content}",
-				color=discord.Color.green(),
+				color=colors["green"]
 			)
 
 			# Send embed in text-logs channel
@@ -287,7 +279,7 @@ async def on_message(message):
 				embed = discord.Embed(
 					title="Modmail Thread",
 					description=f"> Modmail initiated by {message.author.mention}. \n> \n> Please describe your issue and how we can assist you.",
-					color=discord.Color.blue()
+					color=colors["blue"]
 				)
 				embed.set_footer(
 					text="Use the buttons below to manage this thread",
@@ -300,7 +292,7 @@ async def on_message(message):
 				embed = discord.Embed(
 					title="ShedMail",
 					description=f"> A modmail has been created, click below to view the ticket:\n> \n> {channel.mention}",
-					color=discord.Color.green()
+					color=colors["green"]
 				)
 				embed.set_footer(
 					text="This message was written by server staff.",
@@ -316,7 +308,7 @@ async def on_message(message):
 				embed = discord.Embed(
 					title="Hello! I am ShedMail, Your friendly modmail bot!",
 					description="\n> My job is to allow you to message staff! \n> \n> Simply type the word **'contact'** and the staff will be notified!",
-					color=discord.Color.yellow()
+					color=colors["yellow"]
 				)
 				embed.set_footer(
 					text="This message was written by server staff.",
@@ -332,7 +324,7 @@ async def on_message(message):
 				embed = discord.Embed(
 					title="Unknown Command!",
 					description="\n> Type **'help'** for assistance",
-					color=discord.Color.red()
+					color=colors["red"]
 				)
 				embed.set_footer(
 					text="This message was written by server staff.",
@@ -352,7 +344,7 @@ async def on_member_join(member):
 		embed = discord.Embed(
 			title="Welcome!",
 			description=f"> Thank you for joining {member.guild.name}!\n> We're happy to get the chance to chat with you!\n> \n> - Make sure to check out the Rules:\n> {RULES_CHANNEL}\n> \n> - Chat and Enjoy our wonderful server",
-			color=discord.Color.green()
+			color=colors["gold"]
 		)
 		embed.set_footer(
 			text="This message was written by server staff.",
@@ -441,7 +433,7 @@ async def on_guild_join(guild):
 	embed = discord.Embed(
 		title=f"Bot added to a Server:",
 		description=f"> {guild.name}, ID: {guild.id}).\n> Link: {invite_str}",
-		color=colors["black"]
+		color=colors["white"]
 	)
 
 	# Send embed in text-logs channel
@@ -459,7 +451,7 @@ async def on_guild_remove(guild):
 	embed = discord.Embed(
 		title=f"Bot Removed from Server:",
 		description=f"> {guild.name}, ID: {guild.id}).",
-		color=colors["black"]
+		color=colors["white"]
 	)
 
 	# Send embed in text-logs channel
@@ -574,7 +566,7 @@ async def slap(ctx: discord.ext.commands.Context, member: discord.Member):
 	embed = discord.Embed(
 		title="Slap!",
 		description=f"\n> **{ctx.author.mention} slapped {member.mention}!**\n",
-		color=colors['red']
+		color=colors["purple"]
 	)
 	embed.set_image(url=selected_gif)
 
