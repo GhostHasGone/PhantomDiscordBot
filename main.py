@@ -32,7 +32,7 @@ GUILD_ID = config["GUILD_ID"]
 RULES_CHANNEL = config["RULES_CHANNEL"]
 TEXT_LOG_CHANNEL_ID = config["TEXT_LOG_CHANNEL_ID"]
 IMAGE_LOG_CHANNEL_ID = config["IMAGE_LOG_CHANNEL_ID"]
-VERSION = "1.3.1"
+VERSION = "1.0.0"
 VERSION_DATE = "January 16th, 2025"
 
 # Create a bot instance with a command prefix
