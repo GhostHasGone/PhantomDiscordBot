@@ -1,0 +1,42 @@
+Discord Bot Features
+
+1. Modmail System
+   - Allows private communication between server members and staff.
+   - Automatically creates modmail threads under a specified category.
+   - Only accessible by roles defined in the configuration.
+
+2. Welcome Messages
+   - Sends a custom welcome message to new members in a designated channel.
+   - Provides important server information, such as rules and guidelines.
+
+3. Role-Specific Commands
+   - Restricts certain commands to users with specific roles.
+   - Ensures features are used appropriately by authorized members only.
+
+4. Logging System
+   - Text Logs:
+     - Captures all text messages and saves them to a `logs.txt` file.
+     - Displays logs in the terminal during runtime.
+   - Image Logs:
+     - Saves all image attachments in a folder automatically created on startup.
+     - Includes user and channel details for easy moderation.
+
+5. Interactive Commands
+   - `!version`:
+     - Displays the bot's current version in a visually styled embed.
+   - `!slap <@user>`:
+     - Posts a fun message stating the command user "slapped" the mentioned user.
+     - Includes a randomly selected GIF for entertainment.
+   - `!topic`:
+     - Provides a random or sequential discussion topic for community engagement.
+     - Topics are displayed in an embed for visual clarity.
+
+6. Customization
+   - Fully configurable through the `config.json` file.
+   - Adaptable to any server structure or requirements.
+
+7. Easy Setup
+   - Install dependencies with a single click using `install_dependencies.bat`.
+   - All required files are included, with straightforward instructions for setup and running.
+
+This bot is designed to enhance your server with seamless moderation, community interaction, and detailed logging tools.
