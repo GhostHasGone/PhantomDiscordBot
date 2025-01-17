@@ -543,7 +543,7 @@ async def version(ctx: discord.ext.commands.Context):
 
 		embed = discord.Embed(
 			title="🔔 Version",
-			description=f"> You are currently using {VERSION}\n> \n> Released on {VERSION_DATE}",
+			description=f"> You are currently using v{VERSION}\n> \n> Released on {VERSION_DATE}",
 			color=colors["fuchsia"]
 		)
 		embed.set_footer(
