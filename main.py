@@ -1,5 +1,5 @@
-# ©2025 Chase Smith - chase.smith2107@gmail.com
-# Email or add 'ghosthasgone' on Discord for support or inquiries.
+# ©2025 GhostHasGone
+# Add 'ghosthasgone' on Discord for support or inquiries.
 
 # ======================================================================================================================================================================================
 # Imports
