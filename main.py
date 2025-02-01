@@ -1,9 +1,6 @@
 # ©2025 GhostHasGone
 # Add 'ghosthasgone' on Discord for support or inquiries.
 
-VERSION = "1.0.2"
-VERSION_DATE = "January 17th, 2025"
-
 # ======================================================================================================================================================================================
 # Imports
 
@@ -14,8 +11,13 @@ import os
 import random
 import string
 import json
+import aiohttp
+import sys
 
 from discord.ext import commands
+
+VERSION = "1.1.0"
+VERSION_DATE = "January 17th, 2025"
 
 # ======================================================================================================================================================================================
 # Important Stuff
@@ -24,33 +26,48 @@ from discord.ext import commands
 try:
 	with open("config.json", "r") as config_file:
 		config = json.load(config_file)
-except FileNotFoundError:
-	print("Error: \"config.json\" file not found\nExiting...")
+except (FileNotFoundError, json.decoder.JSONDecodeError):
+	print('Error: "config.json" file not found or is incorrectly formatted.\nExiting...')
 	input()
-	exit()
-except json.decoder.JSONDecodeError:
-	print("Error: \"config.json\" file isn't formated correctly\nExiting...")
-	input()
-	exit()
+	sys.exit()
 
-# Extract values from the config
 try:
 	BOT_TOKEN = config["BOT_TOKEN"]
-	MODMAIL_CATAGORY_ID = config["MODMAIL_CATAGORY_ID"]
-	ALLOWED_ROLE_IDS = config["ALLOWED_ROLE_IDS"]
-	ALLOWED_ROLE_MENTION = config["ALLOWED_ROLE_MENTION"]
-	WELCOME_CHANNEL = config["WELCOME_CHANNEL"]
 	GUILD_ID = config["GUILD_ID"]
+	MODMAIL_CATEGORY_ID = config["MODMAIL_CATEGORY_ID"]
+	MOD_ROLE_ID = config["MOD_ROLE_ID"]
+	MOD_ROLE_MENTION = config["MOD_ROLE_MENTION"]
+	ADMIN_ROLE_ID = config["ADMIN_ROLE_ID"]
+	ADMIN_ROLE_MENTION = config["ADMIN_ROLE_MENTION"]
+	WELCOME_CHANNEL = config["WELCOME_CHANNEL"]
 	RULES_CHANNEL = config["RULES_CHANNEL"]
 	TEXT_LOG_CHANNEL_ID = config["TEXT_LOG_CHANNEL_ID"]
 	IMAGE_LOG_CHANNEL_ID = config["IMAGE_LOG_CHANNEL_ID"]
+	ACTIVITY_PING_ROLE_ID = config["ACTIVITY_PING_ROLE_ID"]
+	SERVICER_ROLE_ID = config["SERVICER_ROLE_ID"]
 except KeyError:
-	print("Error: \"config.json\" file isn't formated correctly\nExiting...")
+	print('Error: "config.json" file is missing required fields.\nExiting...')
 	input()
-	exit()
+	sys.exit()
 
 # Create a bot instance with a command prefix
 bot = commands.Bot(command_prefix="!", intents=discord.Intents.all())
+bot.remove_command("help")
+
+
+# ======================================================================================================================================================================================
+# When Bot starts
+
+@bot.event
+async def on_ready():
+	global text_log_channel, image_log_channel
+
+	print(f"Bot is logged in as {bot.user}")
+	await bot.change_presence(activity=discord.Game(name="ModMail"))
+
+	text_log_channel = bot.get_channel(TEXT_LOG_CHANNEL_ID)
+	image_log_channel = bot.get_channel(IMAGE_LOG_CHANNEL_ID)
+	logger.info(f"\n \nLogs:\n")
 
 
 # ======================================================================================================================================================================================
@@ -59,8 +76,6 @@ bot = commands.Bot(command_prefix="!", intents=discord.Intents.all())
 
 class ModmailView(discord.ui.View):
 
-	# Provides the modmail view which includes the resolved and close buttons.
-
 	def __init__(self, guild: discord.Guild, allowed_roles: list[int]):
 
 		super().__init__(timeout=None)
@@ -68,7 +83,7 @@ class ModmailView(discord.ui.View):
 		self.allowed_roles = allowed_roles
 
 	@discord.ui.button(label="Resolved", style=discord.ButtonStyle.success)
-	async def resolved_button(self, interaction: discord.Interaction, button: discord.ui.Button):
+	async def resolved_button(self, button: discord.ui.Button, interaction: discord.Interaction):
 
 		# Update permissions to restrict access to staff only
 		overwrites = {
@@ -84,6 +99,19 @@ class ModmailView(discord.ui.View):
 			text="This message was written by server staff.",
 		)
 
+		# Load modmail logs
+		modmail_logs = load_modmail_logs()
+		user_id = None
+		channel = interaction.channel
+
+		for uid, data in modmail_logs.items():
+			if data["channel_id"] == channel.id:
+				user_id = uid
+				break
+
+		if user_id:
+			modmail_logs[user_id]["status"] = "resolved"
+			save_modmail_logs(modmail_logs)
 		for role_id in self.allowed_roles:
 			role = self.guild.get_role(role_id)
 			if role:
@@ -94,8 +122,8 @@ class ModmailView(discord.ui.View):
 		await interaction.response.send_message(embed=embed)
 
 		# Add "(R)" to the resolved channel name
-		channel = interaction.channel
 		new_name = f"(R) {channel.name}"
+		logger.info(f"ticket '{channel.name}' has been resolved.")
 		await channel.edit(name=new_name)
 		await channel.edit(overwrites=overwrites)
 
@@ -104,7 +132,7 @@ class ModmailView(discord.ui.View):
 	# Part One: "Closed"
 
 	@discord.ui.button(label="Close", style=discord.ButtonStyle.danger)
-	async def close_button(self, interaction: discord.Interaction, button: discord.ui.Button):
+	async def close_button(self, button: discord.ui.Button, interaction: discord.Interaction):
 
 		# Check if the user has permission to use this button
 		if not any(role.id in self.allowed_roles for role in interaction.user.roles):
@@ -119,12 +147,32 @@ class ModmailView(discord.ui.View):
 		embed.set_footer(
 			text="This message was written by server staff.",
 		)
+
+		# Load modmail logs
+		modmail_logs = load_modmail_logs()
+		user_id = None
+		channel = interaction.channel
+
+		for uid, data in modmail_logs.items():
+			if data["channel_id"] == channel.id:
+				user_id = uid
+				break
+
+		if user_id:
+			modmail_logs[user_id]["status"] = "resolved"
+			save_modmail_logs(modmail_logs)
+		# TODO | Un-used code, idk why it's here
+		""" Un-used
+		for role_id in self.allowed_roles:
+			role = self.guild.get_role(role_id)
+		"""
 		await interaction.response.send_message(embed=embed)
 
 		# Wait for 5 seconds
 		await asyncio.sleep(5)
 
 		channel = interaction.channel
+		logger.info(f"ticket '{interaction.channel}' has been closed.")
 		await channel.delete(reason="Modmail thread closed.")
 
 
@@ -132,49 +180,58 @@ class ModmailView(discord.ui.View):
 # Configure logging for all bot actions and messages
 
 # Ensure the logs directory exists
-log_folder = "logs"
-os.makedirs(log_folder, exist_ok=True)
+LOG_FOLDER = "logs"
+os.makedirs(LOG_FOLDER, exist_ok=True)
+
 with open("assets/colors.json", "r") as file:
 	colors = json.load(file)
 
 os.makedirs("logs/images", exist_ok=True)
 
-# Full path for the logs file
-log_file_path = os.path.join(log_folder, "logs.txt")
+log_file_path = os.path.join(LOG_FOLDER, "logs.txt")
 
-# Configure logging
 logging.basicConfig(
 	level=logging.INFO,
 	format="%(asctime)s - %(levelname)s - %(message)s",
 	handlers=[
-		logging.FileHandler(log_file_path, encoding="utf-8"),  # Log to logs/logs.txt
-		logging.StreamHandler(),  # Print logs to the console
+		logging.FileHandler(log_file_path, encoding="utf-8"),
+		logging.StreamHandler(),
 	],
 )
 logger = logging.getLogger(__name__)
 
-# Log "Bot Started"
-logger.info("=======================================================================================")
-logger.info("BOT STARTED ===========================================================================")
-logger.info("=======================================================================================")
-
+logger.info("\n")
+logger.info("=" * 50)
+logger.info("BOT STARTED")
+logger.info("=" * 50)
 
 # ======================================================================================================================================================================================
-# When Bot starts
+# Configure modmail logging
 
-@bot.event
-async def on_ready():
-	global text_log_channel, image_log_channel
+# Ensure the modmail JSON file exists
+MODMAIL_LOG_FILE = "logs/modmail_logs.json"
 
-	# Set Status
-	print(f"Bot is logged in as {bot.user}")  # States the bot user
-	await bot.change_presence(activity=discord.Activity(type=discord.ActivityType.listening, name="ModMail"))  # Status "listening to ModMail"
+if not os.path.exists(MODMAIL_LOG_FILE):
+	with open(MODMAIL_LOG_FILE, "w") as file:
+		json.dump({}, file)
 
-	# Fetch the text and image log channels
-	text_log_channel = bot.get_channel(TEXT_LOG_CHANNEL_ID)
-	image_log_channel = bot.get_channel(IMAGE_LOG_CHANNEL_ID)
 
-	print("\nLOGS: \n")  # Prints logs handle
+def load_modmail_logs():
+	if not os.path.exists("logs/modmail_logs.json"):
+		with open("logs/modmail_logs.json", "w") as file:
+			json.dump({}, file)
+	with open("logs/modmail_logs.json", "r") as file:
+		return json.load(file)
+
+
+# Save modmail logs to JSON file
+def save_modmail_logs(modmail_logs):
+	with open("logs/modmail_logs.json", "w") as file:
+		json.dump(modmail_logs, file, indent=4)
+
+
+# Load active modmail from JSON
+active_modmail = load_modmail_logs()
 
 
 # ======================================================================================================================================================================================
@@ -186,160 +243,187 @@ async def on_message(message):
 	# Makes sure it shows nothing from the bot
 	if message.author.bot:
 		return
-	else:
 
-		# Ensure the log channels exist in the bot's known channels
-		if not text_log_channel or not image_log_channel:
-			print("Log channels not found. Ensure the bot has access to the target server.")
+	# Ensure the log channels exist in the bot's known channels
+	if not text_log_channel or not image_log_channel:
+		print("Log channels not found. Ensure the bot has access to the target server.")
 
-		# Log text-based messages in test-logs channel and Logs file
-		if message.content and not isinstance(message.channel, discord.DMChannel):
-			embed = discord.Embed(
-				title=f"Message from {message.author} in {message.channel}",
-				description=f"> {message.content}",
-				color=colors["green"]
+	# Log text-based messages in test-logs channel and Logs file
+	if message.content and not isinstance(message.channel, discord.DMChannel):
+		embed = discord.Embed(
+			title=f"Message from {message.author} in {message.channel}",
+			description=f"> {message.content}",
+			color=colors["green"]
+		)
+
+		# Send embed in text-logs channel
+		await text_log_channel.send(embed=embed)
+
+		# Send log to the logger
+		logger.info(f"Message from {message.author} in #{message.channel}: '{message.content}'")
+
+	# ======================================================================================================================================================================================
+	# Bot event for messages
+	# Part Two: Image-Logs Channel and Image Log Folder
+
+	# Ensure the images directory exists
+	image_folder = "logs/images"
+	os.makedirs(image_folder, exist_ok=True)  # Creates the folder if it doesn't exist
+
+	# Log messages with images in channel and sends a message to the Logs file
+	if message.attachments:
+		for attachment in message.attachments:
+			if attachment.content_type and attachment.content_type.startswith("image/"):
+				await image_log_channel.send(
+					content=f"**Image from {message.author} in {message.channel}:**",
+					file=await attachment.to_file()
+				)
+				# Generate a scrambled 20-letter name
+				scrambled_name = ''.join(random.choices(string.ascii_letters, k=20))
+
+				# Construct the new filename
+				original_filename = attachment.filename
+				scrambled_filename = f"{scrambled_name} - {original_filename}"
+				image_path = os.path.join(image_folder, scrambled_filename)  # Use os.path.join for cross-platform compatibility
+
+				# Save the file with the new filename
+				await attachment.save(image_path)
+				logger.info(f"Image from {message.author} saved: {image_path}")
+
+	# ======================================================================================================================================================================================
+	# Bot event for messages
+	# Part Three: If DM'd the word "Contact"
+
+	# Check if it's a DM and not from a bot
+	if message.guild is None and not message.author.bot:
+		if message.content.strip().lower() == "contact":
+			# Load current modmail data
+			modmail_logs = load_modmail_logs()
+			guild = bot.get_guild(GUILD_ID)
+
+			if guild is None:
+				await message.author.send("Could not retrieve the server. Please contact the server administrators.")
+				return
+
+			# Fetch the category
+			category = discord.utils.get(guild.categories, id=MODMAIL_CATEGORY_ID)
+			if category is None:
+				await message.author.send("Modmail category is not configured properly. Please contact the server administrators.")
+				return
+
+			# Check if user already has an open modmail
+			if str(message.author.id) in modmail_logs and modmail_logs[str(message.author.id)]["status"] == "open":
+				existing_channel_id = modmail_logs[str(message.author.id)]["channel_id"]
+				existing_channel = guild.get_channel(existing_channel_id)
+
+				if existing_channel:
+					embed = discord.Embed(
+						title="🚫 Modmail Already Open!",
+						description=f"> You already have an active modmail open.\n> \n> {existing_channel.mention}",
+						color=colors["red"]
+					)
+					embed.set_footer(text="If you believe this is a mistake, contact the staff directly.")
+					await message.author.send(f"### {message.author.mention} ModMail Error!", embed=embed)
+					logger.info(f"{message.author.name} (@{message.author.id}) attempted to reach modmail, ticket already exists: '{message.author.name}'")
+					return
+
+			overwrites = {
+				guild.default_role: discord.PermissionOverwrite(read_messages=False),
+				message.author: discord.PermissionOverwrite(read_messages=True, send_messages=True),
+			}
+
+			for role_id in MOD_ROLE_ID:
+				role = guild.get_role(role_id)
+				if role:
+					overwrites[role] = discord.PermissionOverwrite(read_messages=True, send_messages=True)
+
+			# Add permissions for allowed roles
+			for role_id in MOD_ROLE_ID:
+				role = guild.get_role(role_id)
+				if role:
+					overwrites[role] = discord.PermissionOverwrite(read_messages=True, send_messages=True)
+
+			# Create the channel
+			channel_name = f"{message.author.name}"
+			channel = await guild.create_text_channel(
+				name=channel_name,
+				category=category,
+				overwrites=overwrites,
+				topic=f"Modmail thread for {message.author}",
+				reason="Modmail channel creation"
 			)
 
-			# Send embed in text-logs channel
-			await text_log_channel.send(embed=embed)
+			embed = discord.Embed(
+				title="📃 Modmail Thread",
+				description=f"> Modmail initiated by {message.author.mention}. \n> \n> Please describe your issue and how we can assist you.",
+				color=colors["blue"]
+			)
+			embed.set_footer(text="Use the buttons below to manage this thread.")
 
-			# Send log to the logger
-			logger.info(f"Message from {message.author} in #{message.channel}: '{message.content}'")
+			view = ModmailView(guild=guild, allowed_roles=MOD_ROLE_ID)
+			await channel.send(f"### {MOD_ROLE_MENTION} Come help!", embed=embed, view=view)
 
-		# ======================================================================================================================================================================================
-		# Bot event for messages
-		# Part Two: Image-Logs Channel and Image Log Folder
+			# Notify the user
+			embed = discord.Embed(
+				title="📃 ModMail",
+				description=f"> A modmail has been created, click below to view the ticket:\n> \n> {channel.mention}",
+				color=colors["green"]
+			)
+			embed.set_footer(text="This message was written by server staff.")
+			await message.author.send(f"### {message.author.mention} Thank you for reaching out!", embed=embed)
+			logger.info(f"{message.author.name} (@{message.author.id}) created a ticket: '{message.author.name}'")
 
-		# Ensure the images directory exists
-		image_folder = "logs/images"
-		os.makedirs(image_folder, exist_ok=True)  # Creates the folder if it doesn't exist
+			modmail_logs[str(message.author.id)] = {
+				"user": message.author.name,
+				"user_id": message.author.id,
+				"channel_id": channel.id,
+				"status": "open",
+				"date": str(message.created_at)
+			}
 
-		# Log messages with images in channel and sends a message to the Logs file
-		if message.attachments:
-			for attachment in message.attachments:
-				if attachment.content_type and attachment.content_type.startswith("image/"):
-					await image_log_channel.send(
-						content=f"**Image from {message.author} in {message.channel}:**",
-						file=await attachment.to_file()
-					)
-					# Generate a scrambled 20-letter name
-					scrambled_name = ''.join(random.choices(string.ascii_letters, k=20))
-
-					# Construct the new filename
-					original_filename = attachment.filename
-					scrambled_filename = f"{scrambled_name} - {original_filename}"
-					image_path = os.path.join(image_folder, scrambled_filename)  # Use os.path.join for cross-platform compatibility
-
-					# Save the file with the new filename
-					await attachment.save(image_path)
-					logger.info(f"Image from {message.author} saved: {image_path}")
+			save_modmail_logs(modmail_logs)
 
 		# ======================================================================================================================================================================================
 		# Bot event for messages
-		# Part Three: If DM'd the word "Contact"
+		# Part Four: If DM'd the word "Help"
 
-		# Check if it's a DM and not from a bot
-		if message.guild is None and not message.author.bot:
-			if message.content.strip().lower() == "contact":
+		elif message.content.strip().lower() == "help":
 
-				guild = bot.get_guild(GUILD_ID)
+			embed = discord.Embed(
+				title="🆘 Hello! I am at yor service!",
+				description="\n> My job is to allow you to message staff! \n> \n> Simply type the word **'contact'** and the staff will be notified!",
+				color=colors["yellow"]
+			)
+			embed.set_footer(
+				text="This message was written by server staff.",
+			)
+			await message.author.send(f"### {message.author.mention} Here to help!", embed=embed)
 
-				if guild is None:
-					await message.author.send("Could not retrieve the server. Please contact the server administrators.")
-					return
+		# ======================================================================================================================================================================================
+		# Bot event for messages
+		# Part Five: If DM'd anything other than those words
 
-				# Fetch the category
-				category = discord.utils.get(guild.categories, id=MODMAIL_CATAGORY_ID)
-				if category is None:
-					await message.author.send("Modmail category is not configured properly. Please contact the server administrators.")
-					return
+		else:
 
-				# Create permissions for the user and allowed roles
-				overwrites = {
-					guild.default_role: discord.PermissionOverwrite(read_messages=False),  # Deny access to everyone by default
-					message.author: discord.PermissionOverwrite(read_messages=True, send_messages=True),  # Allow the user
-				}
+			embed = discord.Embed(
+				title="👎 Unknown Command!",
+				description="\n> Type **'help'** for assistance",
+				color=colors["red"]
+			)
+			embed.set_footer(
+				text="This message was written by server staff.",
+			)
+			await message.author.send(f"### {message.author.mention} Hmmm...", embed=embed)
 
-				# Add permissions for allowed roles
-				for role_id in ALLOWED_ROLE_IDS:
-					role = guild.get_role(role_id)
-					if role:
-						overwrites[role] = discord.PermissionOverwrite(read_messages=True, send_messages=True)
-
-				# Create the channel
-
-				channel_name = f"{message.author.name}"
-				channel = await guild.create_text_channel(
-					name=channel_name,
-					category=category,
-					overwrites=overwrites,
-					topic=f"Modmail thread for {message.author}",
-					reason="Modmail channel creation"
-				)
-				embed = discord.Embed(
-					title="📃 Modmail Thread",
-					description=f"> Modmail initiated by {message.author.mention}. \n> \n> Please describe your issue and how we can assist you.",
-					color=colors["blue"]
-				)
-				embed.set_footer(
-					text="Use the buttons below to manage this thread",
-				)
-
-				view = ModmailView(guild=guild, allowed_roles=ALLOWED_ROLE_IDS)
-				await channel.send(f"### {ALLOWED_ROLE_MENTION} Come help!", embed=embed, view=view)
-
-				# Notify the user
-				embed = discord.Embed(
-					title="📃 ModMail",
-					description=f"> A modmail has been created, click below to view the ticket:\n> \n> {channel.mention}",
-					color=colors["green"]
-				)
-				embed.set_footer(
-					text="This message was written by server staff.",
-				)
-				await message.author.send(f"### {message.author.mention} Thank you for reaching out!", embed=embed)
-
-			# ======================================================================================================================================================================================
-			# Bot event for messages
-			# Part Four: If DM'd the word "Help"
-
-			elif message.content.strip().lower() == "help":
-
-				embed = discord.Embed(
-					title="🆘 Hello! I am at yor service!",
-					description="\n> My job is to allow you to message staff! \n> \n> Simply type the word **'contact'** and the staff will be notified!",
-					color=colors["yellow"]
-				)
-				embed.set_footer(
-					text="This message was written by server staff.",
-				)
-				await message.author.send(f"### {message.author.mention} Here to help!", embed=embed)
-
-			# ======================================================================================================================================================================================
-			# Bot event for messages
-			# Part Five: If DM'd anything other than those words
-
-			else:
-
-				embed = discord.Embed(
-					title="👎 Unknown Command!",
-					description="\n> Type **'help'** for assistance",
-					color=colors["red"]
-				)
-				embed.set_footer(
-					text="This message was written by server staff.",
-				)
-				await message.author.send(f"### {message.author.mention} Hmmm...", embed=embed)
-
-		await bot.process_commands(message)  # Process commands normally
+	await bot.process_commands(message)  # Process commands normally
 
 
 # ======================================================================================================================================================================================
-# Bot Event for memmber joins:
+# Bot Event for member joins:
 # Part One: DM the Member
 
 @bot.event
-async def on_member_join(member):
+async def on_member_join(member: discord.Member):
 	try:
 		embed = discord.Embed(
 			title="🎉 Welcome!",
@@ -355,11 +439,11 @@ async def on_member_join(member):
 		print(f"Could not send a DM to {member.name}. They may have DMs disabled.")
 
 	# ======================================================================================================================================================================================
-	# Bot Event for memmber joins:
+	# Bot Event for member joins:
 	# Part Two: Send to Welcome Channel
 
 	# Define the channel to send the message
-	wlcmchannel = bot.get_channel(WELCOME_CHANNEL)
+	welcome_channel = bot.get_channel(WELCOME_CHANNEL)
 	# Create the embed
 	embed = discord.Embed(
 		title="🎉 Welcome to the Server!",
@@ -375,10 +459,10 @@ async def on_member_join(member):
 		text=f"Member #{len(member.guild.members)}",
 	)
 	# Send the embed in the channel
-	await wlcmchannel.send(f"{member.mention}", embed=embed)
+	await welcome_channel.send(f"{member.mention}", embed=embed)
 
 	# ======================================================================================================================================================================================
-	# Bot Event for memmber joins:
+	# Bot Event for member joins:
 	# Part Three: Log it in the Text-Logs Channel and the Text-Log File
 
 	embed = discord.Embed(
@@ -402,7 +486,7 @@ async def on_member_join(member):
 # When a member leaves or gets banned/kicked from the server
 
 @bot.event
-async def on_member_remove(member):
+async def on_member_remove(member: discord.Member):
 	# Log when a member leaves
 	logger.info(f"Member left: {member.name} (ID: {member.id}).")
 
@@ -424,7 +508,7 @@ async def on_member_remove(member):
 # Bot added to a server
 
 @bot.event
-async def on_guild_join(guild):
+async def on_guild_join(guild: discord.Guild):
 	invite = await guild.text_channels[0].create_invite()
 	invite_str = f"https://discord.gg/{invite.code}"
 	# Log when the bot is added to a new guild
@@ -444,7 +528,7 @@ async def on_guild_join(guild):
 # Bot removed from Server
 
 @bot.event
-async def on_guild_remove(guild):
+async def on_guild_remove(guild: discord.Guild):
 	# Log when the bot is removed from a guild
 	logger.info(f"Bot removed from guild: {guild.name} (ID: {guild.id}).")
 
@@ -480,7 +564,7 @@ async def on_error(event):
 # Message Delete
 
 @bot.event
-async def on_message_delete(message):
+async def on_message_delete(message: discord.Message):
 	if message.author.bot:
 		return
 	else:
@@ -503,7 +587,7 @@ async def on_message_delete(message):
 # Message Edit
 
 @bot.event
-async def on_message_edit(before, after):
+async def on_message_edit(before: discord.Message, after: discord.Message):
 	if before.author.bot:
 		return
 	else:
@@ -531,75 +615,153 @@ async def on_message_edit(before, after):
 
 
 # ======================================================================================================================================================================================
-# REGULAR COMMANDS
-# Version and support command
+# EVERYONE COMMANDS (Power Level 0)
+# ======================================================================================================================================================================================
+# Help Command 'Done' Button
 
-@bot.command()
-async def version(ctx: discord.ext.commands.Context):
+class DoneButton(discord.ui.View):
+	def __init__(self, author_id: int):
+		super().__init__(timeout=None)
+		self.author_id = author_id  # Store the original command author's ID
+
+	@discord.ui.button(label="Done", style=discord.ButtonStyle.primary)
+	async def done_button(self, button: discord.ui.Button, interaction: discord.Interaction):
+		"""Handles the 'Done' button press event."""
+		# Ensure only the original user can delete the message
+		if interaction.user.id == self.author_id:
+			await interaction.message.delete()  # Delete the help embed
+			await interaction.response.defer()  # Prevent "interaction failed" message
+		else:
+			await interaction.response.send_message(
+				"❌ You are not allowed to delete this message!", ephemeral=True
+			)
+
+
+# ======================================================================================================================================================================================
+# HELP MENU INFORMATION
+
+HELP_DESCRIPTION = (
+	"> **📌 Basic Commands:**\n"
+	"> **`!help`** → Displays this help menu.\n"
+	"> **`!topic`** → Picks a fun discussion topic.\n"
+	"> **`!slap @user`** → Slap another user.\n"
+	"\n"
+	"> **⚔️ Moderator Commands:**\n"
+	"> **`!version`** → Displays the bot version and release date.\n"
+	"> **`!activity`** → Pings the activity role (If configured).\n"
+	"> **`!member @user`** → Shows all of a member's information.\n"
+	"> **`!say <message>`** → Allows you to say anything as the bot.\n"
+	"> **`!bans`** → Shows why a user got banned.\n"
+	"> **`!warn @user`** → Soon to be released.\n"
+	"> **`!warns @user`** → Soon to be released.\n"
+	"> **`!mute @user`** → Soon to be released.\n"
+	"> **`!unmute @user`** → Soon to be released.\n"
+	"> **`!quarantine @user`** → Soon to be released.\n"
+	"\n"
+	"> **⚙️ System Commands (Admins Only):**\n"
+	"> **`!ban @user <reason>`** → Bans a user (Admin only).\n"
+	"> **`!restart`** → Restarts the bot safely (Admin only).\n"
+	"> **`!ping`** → Displays bot latency (Admin only).\n"
+	"\n"
+	"> **📩 ModMail System:**\n"
+	"> Send '**contact**' in a DM to this bot to create a ModMail thread.\n"
+	"> If you already have an open thread, it will provide the link instead.\n"
+)
+
+
+# ======================================================================================================================================================================================
+# Help Command Embed
+
+@bot.command(name="help")
+@commands.cooldown(1, 60, commands.BucketType.user)
+async def help_command(ctx: commands.Context):
 	await ctx.message.delete()
-	# Check if the user has any of the allowed roles
-	has_role = any(role.id in ALLOWED_ROLE_IDS for role in ctx.author.roles)
-	if has_role:
 
+	# Create embed with all the information in the description field
+	embed = discord.Embed(
+		title="**🆘 Bot Help Menu**",
+		description=HELP_DESCRIPTION,
+		color=colors["blue"]
+	)
+	embed.set_footer(text="For support, contact 'ghosthasgone' on Discord.")
+
+	view = DoneButton(ctx.author.id)  # Pass the author's ID to restrict button usage
+	await ctx.send(f"### {ctx.author.mention} Here's what I can do:", embed=embed, view=view)
+
+	logger.info(f"{ctx.author} triggered the 'help' command in {ctx.channel}. Output sent.")
+
+
+@help_command.error
+async def help_error(ctx, error):
+	await ctx.message.delete()
+	if isinstance(error, commands.CommandOnCooldown):
 		embed = discord.Embed(
-			title="🔔 Version",
-			description=f"> You are currently using v{VERSION}\n> \n> Released on {VERSION_DATE}",
-			color=colors["fuchsia"]
+			title="> ⏳ Cooldown!",
+			description=f"> This command is on cooldown! \n> Try again in `{error.retry_after:.2f}` seconds.",
+			color=colors["red"]
 		)
-		embed.set_footer(
-			text="Add 'ghosthasgone' on Discord for Support or Inquiries.",
-		)
-
-		await ctx.channel.send(f"### {ctx.author.mention} Version and Support:", embed=embed, delete_after=10)
-
-		# Log the command use
-		logger.info(f"{ctx.author.mention} triggered the 'version' command in {ctx.channel}. Output sent.")
-	else:
-		await ctx.channel.send(f"{ctx.author.mention} You don't have permission to run this command.", delete_after=5)
-		logger.info(f"{ctx.author} triggered the topic command in {ctx.channel}. Output not sent due to lack of permissions.")
+		embed.set_footer(text="This message was written by server staff.")
+		await ctx.send(f"### {ctx.author.mention}", embed=embed, delete_after=5)
+		logger.info(f"{ctx.author} triggered the 'help' command in {ctx.channel}. Output not sent due to cooldown.")
 
 
 # ======================================================================================================================================================================================
 # Slap Command
 
 @bot.command()
+@commands.cooldown(1, 15, commands.BucketType.user)
 async def slap(ctx: discord.ext.commands.Context, member: discord.Member = None):
-    await ctx.message.delete()
+	await ctx.message.delete()
 
-    # Check if a user is mentioned
-    if not member:
-        # Create an embed for invalid command usage
-        embed = discord.Embed(
-            title="🙁 Invalid Command",
-            description=" \n> You must mention a user when using the `!slap` command.\n> \n> Proper usage is '!slap @user' \n",
-            color=colors["red"]
+	# Check if a user is mentioned
+	if not member:
+		# Create an embed for invalid command usage
+		embed = discord.Embed(
+			title="🙁 Invalid Command",
+			description=" \n> You must mention a user when using the `!slap` command.\n> \n> Proper usage is '!slap @user' \n",
+			color=colors["red"]
 		)
-        embed.set_footer(text="This message was written by server staff.")
-        logger.info(f"{ctx.author} triggered the slap command in {ctx.channel}. Output not sent due to no mention.")
+		embed.set_footer(text="This message was written by server staff.")
+		logger.info(f"{ctx.author} triggered the 'slap' command in {ctx.channel}. Output not sent due to no mention.")
 
-        # Send the embed as a reply
-        await ctx.send(f"### {ctx.author.mention}",embed=embed, delete_after=10)  # Auto-delete after 10 seconds
-        return
+		# Send the embed as a reply
+		await ctx.send(f"### {ctx.author.mention}", embed=embed, delete_after=10)  # Auto-delete after 10 seconds
+		return
 
-    # List of slap GIF URLs
-    slap_gifs = json.load(open("assets/slaps.json", "r"))
+	# List of slap GIF URLs
+	slap_gifs = json.load(open("assets/slaps.json", "r"))
 
-    # Randomly select a slap GIF
-    selected_gif = random.choice(slap_gifs)
+	# Randomly select a slap GIF
+	selected_gif = random.choice(slap_gifs)
 
-    # Create the embed for the slap action
-    embed = discord.Embed(
-        title="✋ Slap!",
-        description=f"\n> **{ctx.author.mention} slapped {member.mention}!**\n",
-        color=colors["purple"]
-    )
-    embed.set_image(url=selected_gif)
+	# Create the embed for the slap action
+	embed = discord.Embed(
+		title="✋ Slap!",
+		description=f"\n> **{ctx.author.mention} slapped {member.mention}!**\n",
+		color=colors["purple"]
+	)
+	embed.set_image(url=selected_gif)
 
-    # Send the embed
-    await ctx.send(f"### {member.mention} Got Slapped!", embed=embed)
+	# Send the embed
+	await ctx.send(f"### {member.mention} Got Slapped!", embed=embed)
 
-    # Log the command use
-    logger.info(f"{ctx.author} triggered the 'slap' command in {ctx.channel}. Output sent.")
+	# Log the command use
+	logger.info(f"{ctx.author} triggered the 'slap' command in {ctx.channel}. Output sent.")
+
+
+@slap.error
+async def slap_error(ctx, error):
+	await ctx.message.delete()
+	if isinstance(error, commands.CommandOnCooldown):
+		embed = discord.Embed(
+			title="⏳ Cooldown!",
+			description=f"> This command is on cooldown! \n> Try again in `{error.retry_after:.2f}` seconds.",
+			color=colors["red"]
+		)
+		embed.set_footer(text=f"This message was written by server staff.")
+		await ctx.send(f"### {ctx.author.mention}", embed=embed, delete_after=5)
+		logger.info(f"{ctx.author} triggered the 'slap' command in {ctx.channel}. Output not sent due to cooldown.")
+		return
 
 
 # ======================================================================================================================================================================================
@@ -609,7 +771,8 @@ current_index = 0  # Global index to track the current topic
 
 
 @bot.command()
-async def topic(ctx: discord.ext.commands.Context):
+@commands.cooldown(1, 15, commands.BucketType.user)
+async def topic(ctx: commands.Context):
 	global current_index
 
 	topics = json.load(open("assets/topics.json", "r"))  # Load the topics from the topics.json
@@ -639,9 +802,634 @@ async def topic(ctx: discord.ext.commands.Context):
 		logger.info(f"{ctx.author} triggered the topic command in {ctx.channel} (restarting). Output sent.")
 		current_index = 0  # Reset to the beginning
 
+
+@topic.error
+async def topic_error(ctx, error):
+	await ctx.message.delete()
+	if isinstance(error, commands.CommandOnCooldown):
+		embed = discord.Embed(
+			title="⏳ Cooldown!",
+			description=f"> This command is on cooldown! \n> Try again in `{error.retry_after:.2f}` seconds.",
+			color=colors["red"]
+		)
+		embed.set_footer(text=f"This message was written by server staff.")
+		await ctx.send(f"### {ctx.author.mention}", embed=embed, delete_after=5)
+		logger.info(f"{ctx.author} triggered the 'topic' command in {ctx.channel}. Output not sent due to cooldown.")
+		return
+
+
+# ======================================================================================================================================================================================
+# MODERATOR COMMANDS (Power Level 1)
+# ======================================================================================================================================================================================
+# Activity Ping
+
+@bot.command()
+async def activity(ctx: commands.Context):
+	await ctx.message.delete()
+
+	# Check if the user has the moderator role
+	has_role = any(role.id in MOD_ROLE_ID or role.id in ADMIN_ROLE_ID or role.id in SERVICER_ROLE_ID for role in ctx.author.roles)
+	if not has_role:
+		embed = discord.Embed(
+			title="❌ Permission Denied",
+			description="> You need a **Moderator Role** to use this command.",
+			color=colors["red"]
+		)
+		embed.set_footer(text="This message was written by server staff.")
+		await ctx.send(f"### {ctx.author.mention}", embed=embed, delete_after=5)
+		logger.info(f"{ctx.author} attempted to use 'activity' in {ctx.channel} but lacks permissions.")
+		return  # Exit early before applying cooldown
+
+	# Apply cooldown only if user has the proper role
+	if ctx.command.is_on_cooldown(ctx):
+		retry_after = ctx.command.get_cooldown_retry_after(ctx)
+		embed = discord.Embed(
+			title="⏳ Cooldown!",
+			description=f"> This command is on cooldown! Try again in `{retry_after:.2f}` seconds.",
+			color=colors["red"]
+		)
+		embed.set_footer(text="This message was written by server staff.")
+		await ctx.send(f"### {ctx.author.mention}", embed=embed, delete_after=5)
+		logger.info(f"{ctx.author} tried 'activity' in {ctx.channel}, but it's on cooldown.")
+		return
+
+	# Apply cooldown manually
+	ctx.command.reset_cooldown(ctx)  # Ensures that only successful attempts trigger the cooldown
+
+	# Fetch the role
+	activity_ping_role = ctx.guild.get_role(ACTIVITY_PING_ROLE_ID)
+
+	# Check if an Activity Ping role is configured
+	if ACTIVITY_PING_ROLE_ID == 0:
+		embed = discord.Embed(
+			title="❌ Activity Ping Not Configured",
+			description="> There is no Activity Ping role set up.",
+			color=colors["red"]
+		)
+		embed.set_footer(text="This message was written by server staff.")
+		await ctx.send(f"### {ctx.author.mention} No Activity Ping Available!", embed=embed, delete_after=10)
+		logger.info(f"{ctx.author} tried to use 'activity' in {ctx.channel}, but no Activity Ping role is set.")
+		return
+
+	if not activity_ping_role:
+		embed = discord.Embed(
+			title="❌ Invalid Role",
+			description="> The Activity Ping role ID in the configuration is invalid.",
+			color=colors["red"]
+		)
+		embed.set_footer(text="This message was written by server staff.")
+		await ctx.send(f"### {ctx.author.mention} Error!", embed=embed, delete_after=10)
+		logger.info(f"{ctx.author} tried to use 'activity' in {ctx.channel}, but the role ID is invalid.")
+		return
+
+	# Send the ping message
+	embed = discord.Embed(
+		title="📢 Activity Alert!",
+		description=f"> **It's time to get active!**",
+		color=colors["green"]
+	)
+	embed.set_footer(text=f"Requested by {ctx.author.display_name}")
+
+	await ctx.send(f"### {activity_ping_role.mention} Hello!", embed=embed)
+	logger.info(f"{ctx.author} triggered the 'activity' command in {ctx.channel}. Activity role pinged.")
+
+
+# ======================================================================================================================================================================================
+# Bot Version Command
+
+@bot.command()
+async def version(ctx: discord.ext.commands.Context):
+	await ctx.message.delete()
+
+	# Check if the user has the moderator role
+	has_role = any(role.id in MOD_ROLE_ID or role.id in ADMIN_ROLE_ID or role.id in SERVICER_ROLE_ID for role in ctx.author.roles)
+	if not has_role:
+		embed = discord.Embed(
+			title="❌ Permission Denied",
+			description="> You need a **Moderator Role** to use this command.",
+			color=colors["red"]
+		)
+		embed.set_footer(text="This message was written by server staff.")
+		await ctx.send(f"### {ctx.author.mention}", embed=embed, delete_after=5)
+		logger.info(f"{ctx.author} attempted to use 'version' in {ctx.channel} but lacks permissions.")
+		return  # Exit early before applying cooldown
+
+	# Apply cooldown only if user has the proper role
+	if ctx.command.is_on_cooldown(ctx):
+		retry_after = ctx.command.get_cooldown_retry_after(ctx)
+		embed = discord.Embed(
+			title="⏳ Cooldown!",
+			description=f"> This command is on cooldown! Try again in `{retry_after:.2f}` seconds.",
+			color=colors["red"]
+		)
+		embed.set_footer(text="This message was written by server staff.")
+		await ctx.send(f"### {ctx.author.mention}", embed=embed, delete_after=5)
+		logger.info(f"{ctx.author} tried 'version' in {ctx.channel}, but it's on cooldown.")
+		return
+
+	# Apply cooldown manually after permission check
+	ctx.command.reset_cooldown(ctx)
+
+	# Create and send the version embed
+	embed = discord.Embed(
+		title="🔔 Version",
+		description=f"> You are currently using {VERSION}\n> \n> Released on {VERSION_DATE}",
+		color=colors["fuchsia"]
+	)
+	embed.set_footer(text="Add 'ghosthasgone' on Discord for Support or Inquiries.")
+	view = DoneButton(ctx.author.id)
+	await ctx.channel.send(f"### {ctx.author.mention} Version and Support:", embed=embed, view=view)
+
+	# Log the command use
+	logger.info(f"{ctx.author.mention} triggered the 'version' command in {ctx.channel}. Output sent.")
+
+
+# ======================================================================================================================================================================================
+# Member Info Command
+
+@bot.command()
+@commands.cooldown(1, 10, commands.BucketType.user)  # 10-second cooldown per user
+async def member(ctx: commands.Context, member: discord.Member = None):
+	await ctx.message.delete()
+
+	# Check if the user has a moderator role
+	has_role = any(role.id in MOD_ROLE_ID or role.id in ADMIN_ROLE_ID or role.id in SERVICER_ROLE_ID for role in ctx.author.roles)
+	if not has_role:
+		embed = discord.Embed(
+			title="❌ Permission Denied",
+			description="> You need a **Moderator Role** to use this command.",
+			color=colors["red"]
+		)
+		embed.set_footer(text="This message was written by server staff.")
+		await ctx.send(f"### {ctx.author.mention}", embed=embed, delete_after=5)
+		logger.info(f"{ctx.author} attempted to use 'member' in {ctx.channel} but lacks permissions.")
+		return
+
+	# If no member is mentioned, use the command author
+	if member is None:
+		member = ctx.author
+
+	# Fetch user avatar and banner (if available)
+	avatar_url = member.avatar.url if member.avatar else "https://cdn.discordapp.com/embed/avatars/0.png"
+	banner_url = member.banner.url if member.banner else None
+
+	# Get role names (excluding @everyone)
+	roles = sorted(member.roles, key=lambda role: role.position, reverse=True)  # Sort by position (highest first)
+	roles = [role.mention for role in roles if role != ctx.guild.default_role]  # Exclude @everyone
+	roles = ", ".join(roles) if roles else "No roles"
+
+	# Get account creation and join dates
+	created_at = member.created_at.strftime("%B %d, %Y (%I:%M %p)")
+	joined_at = member.joined_at.strftime("%B %d, %Y (%I:%M %p)")
+
+	# Check if the user is boosting the server
+	is_boosting = "Boosting" if member.premium_since else "Not Boosting"
+
+	# User status and activity
+	status = str(member.status).title()
+	activity = (
+		f"{member.activity.type.name.title()} {member.activity.name}" if member.activity else "None"
+	)
+
+	# Embed for user info
+	embed = discord.Embed(
+		title=f"📄 Member Information - {member.display_name}\n ",
+		description=(
+
+			f"\n> 👤 **Username**:\n>  **-->** {member.name}\n> "
+			f"\n> 🆔 **User ID:**\n>  **-->** {member.id}\n> "
+			f"\n> 📛 **Nickname:**\n>  **-->** {member.nick}\n> "
+			f"\n> 📅 **Account Created:**\n>  **-->** {created_at}\n> "
+			f"\n> 📥 **Joined Server:**\n>  **-->** {joined_at}\n> "
+			f"\n> 🌟 **Boost Status:**\n>  **-->** {is_boosting}\n> "
+			f"\n> 🎭 **Roles:**\n>  **-->** {roles}\n> "
+			f"\n> 📶 **Status:**\n>  **-->** {status}\n> "
+			f"\n> 🎮 **Activity:**\n>  **-->** {activity}"
+
+		),
+		color=colors["blue"]
+	)
+	embed.set_thumbnail(url=avatar_url)
+	if banner_url:
+		embed.set_image(url=banner_url)
+
+	embed.set_footer(text=f"Requested by {ctx.author.display_name}")
+	view = DoneButton(ctx.author.id)
+	await ctx.send(f"### {ctx.author.mention}", embed=embed, view=view)
+	logger.info(f"{ctx.author} triggered 'member' for {member} in {ctx.channel}.")
+
+
+# Handle cooldown only for authorized users
+@member.error
+async def member_error(ctx, error):
+	await ctx.message.delete()
+	if isinstance(error, commands.CommandOnCooldown):
+		embed = discord.Embed(
+			title="⏳ Cooldown!",
+			description=f"> This command is on cooldown! Try again in `{error.retry_after:.2f}` seconds.",
+			color=colors["red"]
+		)
+		embed.set_footer(text="This message was written by server staff.")
+		await ctx.send(f"### {ctx.author.mention}", embed=embed, delete_after=5)
+		logger.info(f"{ctx.author} triggered 'member' in {ctx.channel}, but it's on cooldown.")
+
+
+# ======================================================================================================================================================================================
+# Say Command
+
+@bot.command()
+async def say(ctx: commands.Context, *, message: str = None):
+	await ctx.message.delete()  # Delete the command message
+
+	# Check if the user has the correct roles
+	has_role = any(role.id in MOD_ROLE_ID or role.id in ADMIN_ROLE_ID or role.id in SERVICER_ROLE_ID for role in ctx.author.roles)
+	if not has_role:
+		embed = discord.Embed(
+			title="❌ Permission Denied",
+			description="> You need the **Moderator** role to use this command.",
+			color=colors["red"]
+		)
+		embed.set_footer(text="This message was written by server staff.")
+		await ctx.send(f"### {ctx.author.mention}", embed=embed, delete_after=5)
+		logger.info(f"{ctx.author} attempted to use 'say' in {ctx.channel} but lacks permissions.")
+		return
+
+	# Ensure there is a message to send
+	if not message:
+		embed = discord.Embed(
+			title="❌ Invalid Usage",
+			description="> You must provide a message to send.\n> **Example:** `!say Hello everyone!`",
+			color=colors["red"]
+		)
+		embed.set_footer(text="This message was written by server staff.")
+		await ctx.send(f"### {ctx.author.mention}", embed=embed, delete_after=5)
+		logger.info(f"{ctx.author} attempted to use 'say' in {ctx.channel} but provided no message.")
+		return
+
+	# Prevent @everyone or @here abuse
+	if "@everyone" in message or "@here" in message:
+		embed = discord.Embed(
+			title="🚫 Mention Restriction",
+			description="> You **cannot** use `@everyone` or `@here` in this command.",
+			color=colors["red"]
+		)
+		embed.set_footer(text="This message was written by server staff.")
+		await ctx.send(f"### {ctx.author.mention}", embed=embed, delete_after=5)
+		logger.info(f"{ctx.author} tried to use 'say' but attempted @everyone or @here mentions.")
+		return
+
+	# Send the message exactly as written, preserving all formatting
+	await ctx.send(message)
+	logger.info(f"{ctx.author} used 'say' in {ctx.channel}: '{message}'")
+
+
+# ======================================================================================================================================================================================
+# Ban Info Command
+
+@bot.command()
+async def bans(ctx: commands.Context, user_query: str = None):
+	await ctx.message.delete()
+
+	# Check if the user has the admin role
+	has_role = any(role.id in MOD_ROLE_ID or role.id in ADMIN_ROLE_ID or role.id in SERVICER_ROLE_ID for role in ctx.author.roles)
+	if not has_role:
+		embed = discord.Embed(
+			title="❌ Permission Denied",
+			description="> You need the **Moderator** role to use this command.",
+			color=colors["red"]
+		)
+		embed.set_footer(text="This message was written by server staff.")
+		await ctx.send(f"### {ctx.author.mention}", embed=embed, delete_after=5)
+		logger.info(f"{ctx.author} attempted to use 'bans' in {ctx.channel} but lacks permissions.")
+		return
+
+	# Load bans
+	bans = load_bans()
+
+	if not bans:
+		embed = discord.Embed(
+			title="📜 No Bans Found",
+			description="> There are **no recorded bans** in the system.",
+			color=colors["green"]
+		)
+		await ctx.send(f"### {ctx.author.mention}", embed=embed, delete_after=10)
+		logger.info(f"{ctx.author} checked the ban list in {ctx.channel}. No bans found.")
+		return
+
+	# If no user is specified, show the full ban list
+	if not user_query:
+		ban_list = "\n".join([f"> **{data['user']}**\n> \n> **ID:** ({data['user_id']})\n>  **Reason:** {data['reason']}\n> **Banned by:** {data['banned_by']}\n" for data in bans.values()])
+
+		embed = discord.Embed(
+			title="🚫 Ban List",
+			description=ban_list if ban_list else "> No bans recorded.",
+			color=colors["red"]
+		)
+		view = DoneButton(ctx.author.id)
+		embed.set_footer(text="Use !bans <user> to search for a specific user.")
+		await ctx.send(f"### {ctx.author.mention}", embed=embed, view=view)
+		logger.info(f"{ctx.author} checked the full ban list in {ctx.channel}.")
+		return
+
+	# Search for the user by ID, username, or mention
+	user_query = user_query.strip("<@!>")  # Remove mention formatting if applicable
+	found_ban = None
+
+	for user_id, data in bans.items():
+		if user_query == user_id or user_query.lower() == data["user"].lower():
+			found_ban = data
+			break
+
+	if found_ban:
+		embed = discord.Embed(
+			title="🚫 Ban Record Found",
+			description=(
+				f"> **User:** \n> {found_ban['user']} (`{found_ban['user_id']}`)\n> "
+				f"\n> **Banned By:**\n> {found_ban['banned_by']} (`{found_ban['banned_by_id']}`)\n> "
+				f"\n> **Reason:**\n> {found_ban['reason']}\n> "
+				f"\n> **Date:**\n> {found_ban['date']}"
+			),
+			color=colors["red"]
+		)
+		view = DoneButton(ctx.author.id)
+		embed.set_footer(text="Use !bans to see all bans.")
+		await ctx.send(f"### {ctx.author.mention}", embed=embed, view=view)
+		logger.info(f"{ctx.author} searched for {user_query} in {ctx.channel} and found a ban record.")
+	else:
+		embed = discord.Embed(
+			title="📜 No Ban Record Found",
+			description=f"> No ban record found for **{user_query}**.",
+			color=colors["green"]
+		)
+		await ctx.send(embed=embed, delete_after=10)
+		logger.info(f"{ctx.author} searched for {user_query} in {ctx.channel} but no record was found.")
+
+
+# ======================================================================================================================================================================================
+# ADMIN COMMANDS (Power Level 2)
+# ======================================================================================================================================================================================
+# Moderation Files Config
+
+# Ensure moderation folder exists
+MODERATION_FOLDER = "moderation"
+BAN_LOG_FILE = os.path.join(MODERATION_FOLDER, "bans.json")
+os.makedirs(MODERATION_FOLDER, exist_ok=True)
+
+
+# Function to load bans
+def load_bans():
+	if not os.path.exists(BAN_LOG_FILE):
+		with open(BAN_LOG_FILE, "w") as file:
+			json.dump({}, file)
+	try:
+		with open(BAN_LOG_FILE, "r") as file:
+			return json.load(file)
+	except json.JSONDecodeError:
+		return {}
+
+
+# Function to save bans
+def save_bans(ban_data):
+	with open(BAN_LOG_FILE, "w") as file:
+		json.dump(ban_data, file, indent=4)
+
+
+# ======================================================================================================================================================================================
+# Ban Command
+
+@bot.command()
+async def ban(ctx: commands.Context, member: discord.Member = None, *, reason: str = None):
+	await ctx.message.delete()
+
+	# Check if the user has the admin role
+	has_role = any(role.id in ADMIN_ROLE_ID or role.id in SERVICER_ROLE_ID for role in ctx.author.roles)
+	if not has_role:
+		embed = discord.Embed(
+			title="❌ Permission Denied",
+			description="> You need an `Administrator Role` to use this command.",
+			color=colors["red"]
+		)
+		embed.set_footer(text="This message was written by server staff.")
+		await ctx.send(f"### {ctx.author.mention}", embed=embed, delete_after=5)
+		logger.info(f"{ctx.author} attempted to use 'ban' in {ctx.channel} but lacks permissions.")
+		return
+
+	# Ensure a valid user is mentioned
+	if not member:
+		embed = discord.Embed(
+			title="❌ Invalid Command Usage",
+			description="> You must mention a **valid user** to ban.\n> **Example:** `!ban @user Spamming`",
+			color=colors["red"]
+		)
+		embed.set_footer(text="This message was written by server staff.")
+		await ctx.send(f"### {ctx.author.mention}", embed=embed, delete_after=10)
+		logger.info(f"{ctx.author} attempted to use 'ban' in {ctx.channel} but did not mention a user.")
+		return
+
+	# Ensure a reason is provided
+	if not reason:
+		embed = discord.Embed(
+			title="❌ No Reason Provided",
+			description="> You must provide a reason for banning this user.\n> **Example:** `!ban @user Spamming in chat`",
+			color=colors["red"]
+		)
+		embed.set_footer(text="This message was written by server staff.")
+		await ctx.send(f"### {ctx.author.mention}", embed=embed, delete_after=10)
+		logger.info(f"{ctx.author} attempted to ban {member} but did not provide a reason.")
+		return
+
+	# Check if the member is bannable
+	if not ctx.guild.me.guild_permissions.ban_members:
+		embed = discord.Embed(
+			title="⚠️ Missing Permissions",
+			description="> I do not have permission to ban members.",
+			color=colors["orange"]
+		)
+		embed.set_footer(text="This message was written by server staff.")
+		await ctx.send(f"### {ctx.author.mention}", embed=embed, delete_after=10)
+		logger.warning(f"Bot does not have permission to ban members.")
+		return
+
+	# Ensure the user is not trying to ban someone with a higher or equal role
+	if member.top_role >= ctx.author.top_role:
+		embed = discord.Embed(
+			title="⚠️ Action Forbidden",
+			description="> You **cannot** ban someone with a higher or equal role to yourself.",
+			color=colors["orange"]
+		)
+		embed.set_footer(text="This message was written by server staff.")
+		await ctx.send(f"### {ctx.author.mention}", embed=embed, delete_after=10)
+		logger.warning(f"{ctx.author} attempted to ban {member}, but they have a higher or equal role.")
+		return
+
+	# Ban the user
+	try:
+		await member.ban(reason=reason)
+
+		# Log the ban in the JSON file
+		bans[str(member.id)] = {
+			"user": str(member.global_name),
+			"user_id": member.id,
+			"banned_by": str(ctx.author),
+			"banned_by_id": ctx.author.id,
+			"reason": reason,
+			"date": str(ctx.message.created_at)
+		}
+		save_bans(bans)
+
+		# Send confirmation
+		embed = discord.Embed(
+			title="🔨 User Banned",
+			description=f"> **{member}** has been banned from the server.\n> **Reason:** {reason}",
+			color=colors["red"]
+		)
+		view = DoneButton(ctx.author.id)
+		embed.set_footer(text=f"Banned by {ctx.author.display_name}")
+		await ctx.send(f"### {ctx.author.mention}", embed=embed, view=view)
+		logger.info(f"{ctx.author} banned {member} for: {reason}")
+
+	except discord.Forbidden:
+		embed = discord.Embed(
+			title="⚠️ Action Forbidden",
+			description="> I **cannot** ban this user. They may have a higher role than me.",
+			color=colors["orange"]
+		)
+		embed.set_footer(text="This message was written by server staff.")
+		await ctx.send(f"### {ctx.author.mention}", embed=embed, delete_after=10)
+		logger.warning(f"{ctx.author} attempted to ban {member}, but bot lacks permissions.")
+
+	except Exception as e:
+		embed = discord.Embed(
+			title="❌ Error",
+			description="> An error occurred while trying to ban this user.",
+			color=colors["red"]
+		)
+		embed.set_footer(text="Please contact an administrator.")
+		await ctx.send(f"### {ctx.author.mention}", embed=embed, delete_after=10)
+		logger.error(f"Error while banning {member}: {e}")
+
+
+# ======================================================================================================================================================================================
+# Restart Bot
+
+@bot.command()
+async def restart(ctx: commands.Context):
+	await ctx.message.delete()
+
+	# Check if the user has the "Administrator" or "Servicer" role
+	has_role = any(role.id in ADMIN_ROLE_ID or role.id in SERVICER_ROLE_ID for role in ctx.author.roles)
+	if not has_role:
+		embed = discord.Embed(
+			title="❌ Permission Denied",
+			description="> You need the `Administrator` role to restart the bot.",
+			color=discord.Color.red()
+		)
+		embed.set_footer(text="This message was written by server staff.")
+		await ctx.send(f"### {ctx.author.mention}", embed=embed, delete_after=5)
+		logger.info(f"{ctx.author} attempted to restart the bot but lacks permissions.")
+		return
+
+	# Notify that the bot is restarting
+	embed = discord.Embed(
+		title="🔄 Restarting Bot",
+		description=f"> Bot is restarting... \n> **Triggered by:** {ctx.author.mention}",
+		color=discord.Color.orange()
+	)
+	embed.set_footer(text="Please wait for the bot to come back online.")
+	restart_message = await ctx.send(f"### {ctx.author.mention}", embed=embed)
+
+	logger.info(f"{ctx.author} triggered the bot restart.")
+
+	# Wait for 5 seconds before deleting the message
+	await asyncio.sleep(5)
+	await restart_message.delete()
+
+	# Gracefully shut down before restarting
+	async def shutdown():
+		try:
+			print("Shutting down... Closing all connections.")
+			logger.info("Shutting down all connections before restart.")
+
+			# Close aiohttp session if it exists
+			session = bot.http._HTTPClient__session
+			if isinstance(session, aiohttp.ClientSession):
+				await session.close()
+				logger.info("Closed aiohttp session.")
+
+			await bot.close()
+			logger.info("Bot is now offline.")
+		except Exception as e:
+			logger.error(f"Error while shutting down: {e}")
+
+	await shutdown()
+
+	# Restart the bot safely
+	try:
+		os.execv(sys.executable, [sys.executable] + sys.argv)
+	except Exception as e:
+		logger.error(f"Error restarting the bot: {e}")
+		print(f"Failed to restart: {e}")
+
+
+# ======================================================================================================================================================================================
+# Ping Command
+
+@bot.command()
+async def ping(ctx: commands.Context):
+	await ctx.message.delete()
+
+	# Check if the user has the required role (Administrator or Servicer)
+	has_role = any(role.id in ADMIN_ROLE_ID or role.id in SERVICER_ROLE_ID for role in ctx.author.roles)
+	if not has_role:
+		embed = discord.Embed(
+			title="❌ Permission Denied",
+			description="> You need the `Administrator` role to use this command.",
+			color=colors["red"]
+		)
+		embed.set_footer(text="This message was written by server staff.")
+		await ctx.send(f"### {ctx.author.mention}", embed=embed, delete_after=5)
+		logger.info(f"{ctx.author} attempted to use 'ping' in {ctx.channel} but lacks permissions.")
+		return  # Exit early before applying cooldown
+
+	# Apply cooldown only if user has the proper role
+	if ctx.command.is_on_cooldown(ctx):
+		retry_after = ctx.command.get_cooldown_retry_after(ctx)
+		embed = discord.Embed(
+			title="⏳ Cooldown!",
+			description=f"> This command is on cooldown! Try again in `{retry_after:.2f}` seconds.",
+			color=colors["red"]
+		)
+		embed.set_footer(text="This message was written by server staff.")
+		await ctx.send(f"### {ctx.author.mention}", embed=embed, delete_after=5)
+		logger.info(f"{ctx.author} tried 'ping' in {ctx.channel}, but it's on cooldown.")
+		return
+
+	# Apply cooldown manually after permission check
+	ctx.command.reset_cooldown(ctx)
+
+	# Get bot latency
+	latency = round(bot.latency * 1000)  # Convert to milliseconds
+
+	# Create the embed
+	embed = discord.Embed(
+		title="🏓 Ping, Pong!",
+		description=f"> Bot Latency: `{latency}ms`",
+		color=colors["green"]
+	)
+	embed.set_footer(text="This message was written by server staff.")
+
+	# Send the embed
+	await ctx.send(f"### {ctx.author.mention}", embed=embed, delete_after=10)
+	logger.info(f"{ctx.author.mention} triggered the 'ping' command in {ctx.channel}. Output sent.")
+
+
 # ======================================================================================================================================================================================
 # Run the bot
 
 if __name__ == "__main__":
+	# Load bans
+	bans = load_bans()
+
 	bot.run(BOT_TOKEN)
-	# - Saucywan was here 👍
+
+# Saucywan was here.
