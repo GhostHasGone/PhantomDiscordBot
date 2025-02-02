@@ -16,8 +16,8 @@ import sys
 
 from discord.ext import commands
 
-VERSION = "1.1.5"
-VERSION_DATE = "January 31th, 2025"
+VERSION = "1.1.6"
+VERSION_DATE = "February 2nd, 2025"
 
 # ======================================================================================================================================================================================
 # Important Stuff
@@ -92,13 +92,15 @@ async def on_ready():
 	print(f"Bot is logged in as {bot.user}")
 	await bot.change_presence(activity=discord.Game(name="ModMail"))
 
-
 	if TEXT_LOG_CHANNEL_ID is not None:
 		text_log_channel = bot.get_channel(TEXT_LOG_CHANNEL_ID)
+	else:
+		logger.warning("Text Log Channel not configured (That's Okay 👍)")
 	if image_log_channel is not None:
 		image_log_channel = bot.get_channel(IMAGE_LOG_CHANNEL_ID)
+	else:
+		logger.warning("Image Log Channel not configured (That's Okay 👍)")
 	logger.info(f"\n \nLogs:\n")
-
 
 # ======================================================================================================================================================================================
 # The buttons for the ModMail Interactions
@@ -274,10 +276,10 @@ async def on_message(message):
 	if message.author.bot:
 		return
 
+	logger.info(f"Message from {message.author} in #{message.channel}: '{message.content}'")
+
 	# Ensure the log channels exist in the bot's known channels
-	if not text_log_channel or not image_log_channel:
-		print("Log channels not found. Ensure the bot has access to the target server.")
-	else:
+	if text_log_channel:
 		# Log text-based messages in test-logs channel and Logs file
 		if message.content and not isinstance(message.channel, discord.DMChannel):
 			embed = discord.Embed(
@@ -288,9 +290,6 @@ async def on_message(message):
 
 			# Send embed in text-logs channel
 			await text_log_channel.send(embed=embed)
-
-			# Send log to the logger
-			logger.info(f"Message from {message.author} in #{message.channel}: '{message.content}'")
 
 	# ======================================================================================================================================================================================
 	# Bot event for messages
