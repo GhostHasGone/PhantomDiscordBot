@@ -1,8 +1,8 @@
 {
     "BOT_TOKEN": "0",
     "GUILD_ID": 0,
-    "RULES_CHANNEL": "<#0>",
-    "WELCOME_CHANNEL": 0,
+    "RULES_CHANNEL_ID": 0,
+    "WELCOME_CHANNEL_ID": 0,
     "MOD_ROLE_ID": [0],
     "MOD_ROLE_MENTION": "<@&0>",
     "ADMIN_ROLE_ID": [0],

@@ -8,16 +8,16 @@ import discord
 import asyncio
 import logging
 import os
+import datetime
 import random
 import string
 import json
-import aiohttp
 import sys
 
 from discord.ext import commands
 
-VERSION = "1.1.0"
-VERSION_DATE = "January 17th, 2025"
+VERSION = "1.1.5"
+VERSION_DATE = "January 31th, 2025"
 
 # ======================================================================================================================================================================================
 # Important Stuff
@@ -33,27 +33,54 @@ except (FileNotFoundError, json.decoder.JSONDecodeError):
 
 try:
 	BOT_TOKEN = config["BOT_TOKEN"]
+
 	GUILD_ID = config["GUILD_ID"]
+
 	MODMAIL_CATEGORY_ID = config["MODMAIL_CATEGORY_ID"]
+
 	MOD_ROLE_ID = config["MOD_ROLE_ID"]
 	MOD_ROLE_MENTION = config["MOD_ROLE_MENTION"]
+
 	ADMIN_ROLE_ID = config["ADMIN_ROLE_ID"]
 	ADMIN_ROLE_MENTION = config["ADMIN_ROLE_MENTION"]
-	WELCOME_CHANNEL = config["WELCOME_CHANNEL"]
-	RULES_CHANNEL = config["RULES_CHANNEL"]
+
+	WELCOME_CHANNEL_ID = config["WELCOME_CHANNEL_ID"]
+	RULES_CHANNEL_ID = config["RULES_CHANNEL_ID"]
 	TEXT_LOG_CHANNEL_ID = config["TEXT_LOG_CHANNEL_ID"]
 	IMAGE_LOG_CHANNEL_ID = config["IMAGE_LOG_CHANNEL_ID"]
+
 	ACTIVITY_PING_ROLE_ID = config["ACTIVITY_PING_ROLE_ID"]
+
 	SERVICER_ROLE_ID = config["SERVICER_ROLE_ID"]
 except KeyError:
 	print('Error: "config.json" file is missing required fields.\nExiting...')
 	input()
 	sys.exit()
 
+# just here to make my IDE look pretty <3
+text_log_channel = None
+image_log_channel = None
+
 # Create a bot instance with a command prefix
 bot = commands.Bot(command_prefix="!", intents=discord.Intents.all())
 bot.remove_command("help")
 
+def is_staff(member: discord.Member, has_mod: bool, has_admin: bool, has_servicer: bool) -> bool:
+	# Check if the member has admin permissions
+	if has_servicer and any(role.id in SERVICER_ROLE_ID for role in member.roles):
+		return True
+
+	if member.guild_permissions.administrator:
+		return True
+
+	# If the command requires admin and the member does not have it, return False
+	if has_admin and any(role.id in ADMIN_ROLE_ID for role in member.roles):
+		return True
+
+	if has_mod and any(role.id in MOD_ROLE_ID for role in member.roles):
+		return True
+
+	return False
 
 # ======================================================================================================================================================================================
 # When Bot starts
@@ -65,8 +92,11 @@ async def on_ready():
 	print(f"Bot is logged in as {bot.user}")
 	await bot.change_presence(activity=discord.Game(name="ModMail"))
 
-	text_log_channel = bot.get_channel(TEXT_LOG_CHANNEL_ID)
-	image_log_channel = bot.get_channel(IMAGE_LOG_CHANNEL_ID)
+
+	if TEXT_LOG_CHANNEL_ID is not None:
+		text_log_channel = bot.get_channel(TEXT_LOG_CHANNEL_ID)
+	if image_log_channel is not None:
+		image_log_channel = bot.get_channel(IMAGE_LOG_CHANNEL_ID)
 	logger.info(f"\n \nLogs:\n")
 
 
@@ -135,7 +165,7 @@ class ModmailView(discord.ui.View):
 	async def close_button(self, button: discord.ui.Button, interaction: discord.Interaction):
 
 		# Check if the user has permission to use this button
-		if not any(role.id in self.allowed_roles for role in interaction.user.roles):
+		if not is_staff(interaction.user, True, True, True):
 			await interaction.response.send_message("You don't have permission to close this thread.", ephemeral=True)
 			return
 
@@ -161,11 +191,6 @@ class ModmailView(discord.ui.View):
 		if user_id:
 			modmail_logs[user_id]["status"] = "resolved"
 			save_modmail_logs(modmail_logs)
-		# TODO | Un-used code, idk why it's here
-		""" Un-used
-		for role_id in self.allowed_roles:
-			role = self.guild.get_role(role_id)
-		"""
 		await interaction.response.send_message(embed=embed)
 
 		# Wait for 5 seconds
@@ -181,10 +206,16 @@ class ModmailView(discord.ui.View):
 
 # Ensure the logs directory exists
 LOG_FOLDER = "logs"
+
+logger = logging.getLogger(__name__)
+
 os.makedirs(LOG_FOLDER, exist_ok=True)
 
-with open("assets/colors.json", "r") as file:
-	colors = json.load(file)
+if os.path.exists("assets/colors.json"):
+	with open("assets/colors.json", "r") as file:
+		colors = json.load(file)
+else:
+	logger.warning('The file "assets/colors.json" is missing. Please download it.')
 
 os.makedirs("logs/images", exist_ok=True)
 
@@ -198,7 +229,6 @@ logging.basicConfig(
 		logging.StreamHandler(),
 	],
 )
-logger = logging.getLogger(__name__)
 
 logger.info("\n")
 logger.info("=" * 50)
@@ -213,13 +243,13 @@ MODMAIL_LOG_FILE = "logs/modmail_logs.json"
 
 if not os.path.exists(MODMAIL_LOG_FILE):
 	with open(MODMAIL_LOG_FILE, "w") as file:
-		json.dump({}, file)
+		json.dump({}, file, indent=4)
 
 
 def load_modmail_logs():
 	if not os.path.exists("logs/modmail_logs.json"):
 		with open("logs/modmail_logs.json", "w") as file:
-			json.dump({}, file)
+			json.dump({}, file, indent=4)
 	with open("logs/modmail_logs.json", "r") as file:
 		return json.load(file)
 
@@ -247,20 +277,20 @@ async def on_message(message):
 	# Ensure the log channels exist in the bot's known channels
 	if not text_log_channel or not image_log_channel:
 		print("Log channels not found. Ensure the bot has access to the target server.")
+	else:
+		# Log text-based messages in test-logs channel and Logs file
+		if message.content and not isinstance(message.channel, discord.DMChannel):
+			embed = discord.Embed(
+				title=f"Message from {message.author} in {message.channel}",
+				description=f"> {message.content}",
+				color=colors["green"]
+			)
 
-	# Log text-based messages in test-logs channel and Logs file
-	if message.content and not isinstance(message.channel, discord.DMChannel):
-		embed = discord.Embed(
-			title=f"Message from {message.author} in {message.channel}",
-			description=f"> {message.content}",
-			color=colors["green"]
-		)
+			# Send embed in text-logs channel
+			await text_log_channel.send(embed=embed)
 
-		# Send embed in text-logs channel
-		await text_log_channel.send(embed=embed)
-
-		# Send log to the logger
-		logger.info(f"Message from {message.author} in #{message.channel}: '{message.content}'")
+			# Send log to the logger
+			logger.info(f"Message from {message.author} in #{message.channel}: '{message.content}'")
 
 	# ======================================================================================================================================================================================
 	# Bot event for messages
@@ -274,10 +304,11 @@ async def on_message(message):
 	if message.attachments:
 		for attachment in message.attachments:
 			if attachment.content_type and attachment.content_type.startswith("image/"):
-				await image_log_channel.send(
-					content=f"**Image from {message.author} in {message.channel}:**",
-					file=await attachment.to_file()
-				)
+				if image_log_channel is not None:
+					await image_log_channel.send(
+						content=f"**Image from {message.author} in {message.channel}:**",
+						file=await attachment.to_file()
+					)
 				# Generate a scrambled 20-letter name
 				scrambled_name = ''.join(random.choices(string.ascii_letters, k=20))
 
@@ -360,7 +391,7 @@ async def on_message(message):
 			)
 			embed.set_footer(text="Use the buttons below to manage this thread.")
 
-			view = ModmailView(guild=guild, allowed_roles=MOD_ROLE_ID)
+			view = ModmailView(guild=guild, allowed_roles=[MOD_ROLE_ID, ADMIN_ROLE_ID, SERVICER_ROLE_ID])
 			await channel.send(f"### {MOD_ROLE_MENTION} Come help!", embed=embed, view=view)
 
 			# Notify the user
@@ -424,10 +455,12 @@ async def on_message(message):
 
 @bot.event
 async def on_member_join(member: discord.Member):
+	rules_channel = bot.get_channel(RULES_CHANNEL_ID)
+
 	try:
 		embed = discord.Embed(
 			title="🎉 Welcome!",
-			description=f"> Thank you for joining {member.guild.name}!\n> We're happy to get the chance to chat with you!\n> \n> - Make sure to check out the Rules:\n> {RULES_CHANNEL}\n> \n> - Chat and Enjoy our wonderful server",
+			description=f"> Thank you for joining {member.guild.name}!\n> We're happy to get the chance to chat with you!\n> \n> - Make sure to check out the Rules:\n> {rules_channel}\n> \n> - Chat and Enjoy our wonderful server",
 			color=colors["gold"]
 		)
 		embed.set_footer(
@@ -443,14 +476,14 @@ async def on_member_join(member: discord.Member):
 	# Part Two: Send to Welcome Channel
 
 	# Define the channel to send the message
-	welcome_channel = bot.get_channel(WELCOME_CHANNEL)
+	welcome_channel = bot.get_channel(WELCOME_CHANNEL_ID)
 	# Create the embed
 	embed = discord.Embed(
 		title="🎉 Welcome to the Server!",
 		description=(
 			f"> Hey {member.mention}, welcome to **{member.guild.name}**!\n"
 			f"> We're so excited to have you here!\n> \n"
-			f"> Please remember to read the Rules in {RULES_CHANNEL}."
+			f"> Please remember to read the Rules in {rules_channel}."
 		),
 		color=colors["gold"]
 	)
@@ -476,7 +509,8 @@ async def on_member_join(member: discord.Member):
 	)
 
 	# Send embed in text-logs channel
-	await text_log_channel.send(embed=embed)
+	if text_log_channel is not None:
+		await text_log_channel.send(embed=embed)
 
 	# Log when a new member joins
 	logger.info(f"Member joined: {member.name} (ID: {member.id}).")
@@ -501,7 +535,8 @@ async def on_member_remove(member: discord.Member):
 	)
 
 	# Send embed in text-logs channel
-	await text_log_channel.send(embed=embed)
+	if text_log_channel is not None:
+		await text_log_channel.send(embed=embed)
 
 
 # ======================================================================================================================================================================================
@@ -521,7 +556,8 @@ async def on_guild_join(guild: discord.Guild):
 	)
 
 	# Send embed in text-logs channel
-	await text_log_channel.send(embed=embed)
+	if text_log_channel is not None:
+		await text_log_channel.send(embed=embed)
 
 
 # ======================================================================================================================================================================================
@@ -539,7 +575,8 @@ async def on_guild_remove(guild: discord.Guild):
 	)
 
 	# Send embed in text-logs channel
-	await text_log_channel.send(embed=embed)
+	if text_log_channel is not None:
+		await text_log_channel.send(embed=embed)
 
 
 # ======================================================================================================================================================================================
@@ -557,7 +594,8 @@ async def on_error(event):
 	)
 
 	# Send embed in text-logs channel
-	await text_log_channel.send(embed=embed)
+	if text_log_channel is not None:
+		await text_log_channel.send(embed=embed)
 
 
 # ======================================================================================================================================================================================
@@ -578,7 +616,8 @@ async def on_message_delete(message: discord.Message):
 			)
 
 			# Send embed in text-logs channel
-			await text_log_channel.send(embed=embed)
+			if text_log_channel is not None:
+				await text_log_channel.send(embed=embed)
 		else:
 			return
 
@@ -609,7 +648,8 @@ async def on_message_edit(before: discord.Message, after: discord.Message):
 			)
 
 			# Send embed in text-logs channel
-			await text_log_channel.send(embed=embed)
+			if text_log_channel is not None:
+				await text_log_channel.send(embed=embed)
 		else:
 			return
 
@@ -652,11 +692,9 @@ HELP_DESCRIPTION = (
 	"> **`!member @user`** → Shows all of a member's information.\n"
 	"> **`!say <message>`** → Allows you to say anything as the bot.\n"
 	"> **`!bans`** → Shows why a user got banned.\n"
-	"> **`!warn @user`** → Soon to be released.\n"
-	"> **`!warns @user`** → Soon to be released.\n"
-	"> **`!mute @user`** → Soon to be released.\n"
-	"> **`!unmute @user`** → Soon to be released.\n"
-	"> **`!quarantine @user`** → Soon to be released.\n"
+	"> **`!warn @user <reason>`** → Warns a member.\n"
+	"> **`!warns @user`** → Displays the warn info for a member.\n"
+	"> **`!mute @user <duration(add 's', 'm', 'h', etc.> <reason>`** → Mutes a member.\n"
 	"\n"
 	"> **⚙️ System Commands (Admins Only):**\n"
 	"> **`!ban @user <reason>`** → Bans a user (Admin only).\n"
@@ -828,7 +866,7 @@ async def activity(ctx: commands.Context):
 	await ctx.message.delete()
 
 	# Check if the user has the moderator role
-	has_role = any(role.id in MOD_ROLE_ID or role.id in ADMIN_ROLE_ID or role.id in SERVICER_ROLE_ID for role in ctx.author.roles)
+	has_role = is_staff(ctx.author, True, True, True)
 	if not has_role:
 		embed = discord.Embed(
 			title="❌ Permission Denied",
@@ -902,7 +940,7 @@ async def version(ctx: discord.ext.commands.Context):
 	await ctx.message.delete()
 
 	# Check if the user has the moderator role
-	has_role = any(role.id in MOD_ROLE_ID or role.id in ADMIN_ROLE_ID or role.id in SERVICER_ROLE_ID for role in ctx.author.roles)
+	has_role = is_staff(ctx.author, True, True, True)
 	if not has_role:
 		embed = discord.Embed(
 			title="❌ Permission Denied",
@@ -953,7 +991,7 @@ async def member(ctx: commands.Context, member: discord.Member = None):
 	await ctx.message.delete()
 
 	# Check if the user has a moderator role
-	has_role = any(role.id in MOD_ROLE_ID or role.id in ADMIN_ROLE_ID or role.id in SERVICER_ROLE_ID for role in ctx.author.roles)
+	has_role = is_staff(ctx.author, True, True, True)
 	if not has_role:
 		embed = discord.Embed(
 			title="❌ Permission Denied",
@@ -1042,7 +1080,7 @@ async def say(ctx: commands.Context, *, message: str = None):
 	await ctx.message.delete()  # Delete the command message
 
 	# Check if the user has the correct roles
-	has_role = any(role.id in MOD_ROLE_ID or role.id in ADMIN_ROLE_ID or role.id in SERVICER_ROLE_ID for role in ctx.author.roles)
+	has_role = is_staff(ctx.author, True, True, True)
 	if not has_role:
 		embed = discord.Embed(
 			title="❌ Permission Denied",
@@ -1082,6 +1120,123 @@ async def say(ctx: commands.Context, *, message: str = None):
 	await ctx.send(message)
 	logger.info(f"{ctx.author} used 'say' in {ctx.channel}: '{message}'")
 
+# ======================================================================================================================================================================================
+# Warn Command Files
+
+# Ensure moderation folder exists
+WARN_FOLDER = "moderation/warns"
+os.makedirs(WARN_FOLDER, exist_ok=True)
+
+# Function to load warnings
+def load_warns():
+	warns = {}
+	for file in os.listdir(WARN_FOLDER):
+		if file.endswith(".json"):
+			with open(os.path.join(WARN_FOLDER, file), "r") as f:
+				warns[file.replace(".json", "")] = json.load(f)
+	return warns
+
+# Function to save warnings
+def save_warn(user_id, data):
+	with open(os.path.join(WARN_FOLDER, f"{user_id}.json"), "w") as f:
+		json.dump(data, f, indent=4)
+
+# Load warns initially
+warns = load_warns()
+
+# ======================================================================================================================================================================================
+# Warn Command
+
+@bot.command()
+async def warn(ctx: commands.Context, member: discord.Member = None, *, reason: str = None):
+	await ctx.message.delete()
+
+	# Ensure the user issuing the warning has moderator, admin, or servicer role
+	has_role = is_staff(ctx.author, True, True, True)
+	if not has_role:
+		embed = discord.Embed(title="❌ Permission Denied", description="> You need the **Moderator** Role or above to use this command.", color=colors["red"])
+		await ctx.send(f"### {ctx.author.mention}", embed=embed, delete_after=5)
+		logger.info(f"{ctx.author} attempted to use 'warn' in {ctx.channel} but lacks permissions.")
+		return
+
+	# Ensure a user is mentioned and a reason is provided
+	if not member or not reason:
+		embed = discord.Embed(title="❌ Invalid Command Usage", description="> Use `!warn @user <reason>` to warn a user.", color=colors["red"])
+		await ctx.send(f"### {ctx.author.mention}", embed=embed, delete_after=10)
+		logger.info(f"{ctx.author} attempted to use 'warn' in {ctx.channel} but provided invalid arguments.")
+		return
+
+	# Ensure the user being warned is not a moderator, admin, or servicer
+	if is_staff(member, True, True, True):
+		embed = discord.Embed(title="❌ Cannot Warn Staff", description="> You cannot warn a **Moderator, Administrator, or Servicer**.", color=colors["red"])
+		await ctx.send(f"### {ctx.author.mention}", embed=embed, delete_after=10)
+		logger.info(f"{ctx.author} attempted to warn {member}, but they have a protected role.")
+		return
+
+	# Load existing warnings for the user
+	user_id = str(member.id)
+	warns = load_warns().get(str(user_id), [])
+
+	# Add the new warning
+	warns.append({
+		"warned_by": str(ctx.author),
+		"warned_by_id": ctx.author.id,
+		"reason": reason,
+		"date": datetime.datetime.now(datetime.UTC).strftime("%Y-%m-%d %H:%M:%S")
+	})
+	save_warn(user_id, warns)
+
+	# Send confirmation
+	embed = discord.Embed(title="⚠️ User Warned", description=f"> **{member}** has been warned.\n> **Reason:** {reason}", color=colors["orange"])
+	embed.set_footer(text=f"Warned by {ctx.author.display_name}")
+	view = DoneButton(ctx.author.id)
+	await ctx.send(f"### {ctx.author.mention}", embed=embed, view=view)
+	logger.info(f"{ctx.author} warned {member} for: {reason}")
+
+
+# ======================================================================================================================================================================================
+# Warns Command
+@bot.command(name="warns")
+async def warns_command(ctx: commands.Context, member: discord.Member = None):
+	await ctx.message.delete()
+
+	# Ensure the user has a moderator role
+	has_role = is_staff(ctx.author, True, True, True)
+	if not has_role:
+		embed = discord.Embed(title="❌ Permission Denied", description="> You need the **Moderator** Role or above to use this command.", color=colors["red"])
+		await ctx.send(f"### {ctx.author.mention}", embed=embed, delete_after=5)
+		logger.info(f"{ctx.author} attempted to use 'warns' in {ctx.channel} but lacks permissions.")
+		return
+
+	# Load warnings
+	warns = load_warns()
+
+	# Show warnings for a specific user
+	if member:
+		user_id = str(member.id)
+		if user_id in warns and warns[user_id]:
+			warn_list = "\n".join([f"> **Date:** {warn['date']}\n> **Reason:** {warn['reason']}\n> **Warned By:** {warn['warned_by']}\n" for warn in warns[user_id]])
+			embed = discord.Embed(title=f"⚠️ Warnings for {member.display_name}", description=warn_list, color=colors["orange"])
+			view = DoneButton(ctx.author.id)
+			await ctx.send(f"### {ctx.author.mention}", embed=embed, view=view)
+			logger.info(f"{ctx.author} checked warnings for {member} in {ctx.channel}.")
+		else:
+			embed = discord.Embed(title="✅ No Warnings", description=f"> **{member}** has no recorded warnings.", color=colors["green"])
+			await ctx.send(f"### {ctx.author.mention}", embed=embed, delete_after=10)
+			logger.info(f"{ctx.author} checked warnings for {member} in {ctx.channel}, but none were found.")
+		return
+
+	# Show all warnings
+	if warns:
+		all_warns = "\n".join([f"> **{bot.get_user(int(user))}** ({user}) -  **Warnings:** {len(warns[user])}\n" for user in warns])
+		embed = discord.Embed(title="⚠️ All User Warnings", description=all_warns, color=colors["orange"])
+		view = DoneButton(ctx.author.id)
+		await ctx.send(f"### {ctx.author.mention}", embed=embed, view=view)
+		logger.info(f"{ctx.author} checked all warnings in {ctx.channel}.")
+	else:
+		embed = discord.Embed(title="✅ No Warnings Recorded", description="> There are no recorded warnings.", color=colors["green"])
+		await ctx.send(f"### {ctx.author.mention}", embed=embed, delete_after=10)
+		logger.info(f"{ctx.author} checked all warnings in {ctx.channel}, but none were found.")
 
 # ======================================================================================================================================================================================
 # Ban Info Command
@@ -1091,7 +1246,7 @@ async def bans(ctx: commands.Context, user_query: str = None):
 	await ctx.message.delete()
 
 	# Check if the user has the admin role
-	has_role = any(role.id in MOD_ROLE_ID or role.id in ADMIN_ROLE_ID or role.id in SERVICER_ROLE_ID for role in ctx.author.roles)
+	has_role = is_staff(ctx.author, False, True, True)
 	if not has_role:
 		embed = discord.Embed(
 			title="❌ Permission Denied",
@@ -1164,11 +1319,116 @@ async def bans(ctx: commands.Context, user_query: str = None):
 		await ctx.send(embed=embed, delete_after=10)
 		logger.info(f"{ctx.author} searched for {user_query} in {ctx.channel} but no record was found.")
 
+# ======================================================================================================================================================================================
+# Mute Command & Buttons
+
+# Unmute button class
+class UnmuteButton(discord.ui.View):
+	def __init__(self, moderator_id, member):
+		super().__init__(timeout=None)
+		self.moderator_id = moderator_id
+		self.member = member
+
+	@discord.ui.button(label="Unmute", style=discord.ButtonStyle.danger, custom_id="unmute_button")
+	async def done_button(self, button: discord.ui.Button, interaction: discord.Interaction):
+		# Ensure only the moderator who issued the mute can unmute
+		if interaction.user.id != self.moderator_id:
+			await interaction.response.send_message("You are not authorized to unmute this user.", ephemeral=True)
+			return
+
+		# Unmute the user
+		try:
+			await self.member.edit(communication_disabled_until=None)
+			await interaction.response.send_message(f"✅ **{self.member} has been unmuted!**", ephemeral=False)
+			await asyncio.sleep(3)
+			await interaction.delete_original_response()
+
+			# Log the unmute action
+			logger.info(f"{interaction.user} unmuted {self.member}")
+
+		except discord.Forbidden:
+			await interaction.response.send_message("❌ I lack the permissions to unmute this user.", ephemeral=True)
+
+@bot.command()
+async def mute(ctx: commands.Context, member: discord.Member = None, duration: str = None, *, reason: str = None):
+	await ctx.message.delete()
+
+	# Ensure the user issuing the mute has moderator, admin, or servicer role
+	has_role = is_staff(ctx.author, True, True, True)
+	if not has_role:
+		embed = discord.Embed(title="❌ Permission Denied", description="> You need the **Moderator** Role or above to use this command.", color=0xFF0000)
+		await ctx.send(f"### {ctx.author.mention}", embed=embed, delete_after=5)
+		logger.info(f"{ctx.author} attempted to use 'mute' in {ctx.channel} but lacks permissions.")
+		return
+
+	# Ensure a user is mentioned, a duration is provided, and a reason is given
+	if not member or not duration or not reason:
+		embed = discord.Embed(title="❌ Invalid Command Usage", description="> Use `!mute @user <duration> <reason>` to mute a user.\n> Example: `!mute @User 10m Spamming`", color=0xFF0000)
+		await ctx.send(f"### {ctx.author.mention}", embed=embed, delete_after=10)
+		logger.info(f"{ctx.author} attempted to use 'mute' in {ctx.channel} but provided invalid arguments.")
+		return
+
+	# Ensure the user being muted is not a moderator, admin, or servicer
+	if is_staff(member, True, True, True):
+		embed = discord.Embed(title="❌ Cannot Mute Staff", description="> You cannot mute a **Moderator, Administrator, or Servicer**.", color=0xFF0000)
+		await ctx.send(f"### {ctx.author.mention}", embed=embed, delete_after=10)
+		logger.info(f"{ctx.author} attempted to mute {member}, but they have a protected role.")
+		return
+
+	# Convert duration to seconds
+	time_multipliers = {"s": 1, "m": 60, "h": 3600, "d": 86400}
+	try:
+		unit = duration[-1]
+		if unit not in time_multipliers or not duration[:-1].isdigit():
+			raise ValueError
+		mute_seconds = int(duration[:-1]) * time_multipliers[unit]
+	except ValueError:
+		embed = discord.Embed(title="❌ Invalid Duration Format", description="> Use a valid format: `Xs`, `Xm`, `Xh`, `Xd` (e.g., `10m` for 10 minutes)", color=0xFF0000)
+		await ctx.send(f"### {ctx.author.mention}", embed=embed, delete_after=10)
+		logger.info(f"{ctx.author} provided an invalid duration for 'mute' command.")
+		return
+
+	# Apply timeout (mute) to the user
+	try:
+		until = discord.utils.utcnow() + datetime.timedelta(seconds=mute_seconds)
+		await member.edit(communication_disabled_until=until, reason=reason)
+	except discord.Forbidden:
+		embed = discord.Embed(title="❌ Mute Failed", description="> I lack permission to mute this user.", color=0xFF0000)
+		await ctx.send(f"### {ctx.author.mention}", embed=embed, delete_after=10)
+		logger.error(f"Failed to mute {member} due to insufficient bot permissions.")
+		return
+
+	# Log the mute as a warning
+	user_id = str(member.id)
+	warns = load_warns().get(user_id, [])
+
+	warns.append({
+		"warned_by": str(ctx.author),
+		"warned_by_id": ctx.author.id,
+		"reason": f"[MUTE] {reason} (Duration: {duration})",
+		"date": datetime.datetime.now(datetime.UTC).strftime("%Y-%m-%d %H:%M:%S")
+	})
+	save_warn(user_id, warns)
+
+	view = UnmuteButton(ctx.author.id, member)  # Unmute button
+	done_view = DoneButton(ctx.author.id)  # Your existing Done button
+	# Combine both views
+	combined_view = discord.ui.View()
+	for child in view.children:
+		combined_view.add_item(child)
+	for child in done_view.children:
+		combined_view.add_item(child)
+
+	# Send confirmation
+	embed = discord.Embed(title="🔇 User Muted", description=f"> **{member}** has been muted for **{duration}**.\n> **Reason:** {reason}", color=0xFFA500)
+	embed.set_footer(text=f"Muted by {ctx.author.display_name}")
+	await ctx.send(f"### {ctx.author.mention}", embed=embed, view=combined_view)
+	logger.info(f"{ctx.author} muted {member} for {duration} due to: {reason}")
 
 # ======================================================================================================================================================================================
 # ADMIN COMMANDS (Power Level 2)
 # ======================================================================================================================================================================================
-# Moderation Files Config
+# Moderation Ban Files Config
 
 # Ensure moderation folder exists
 MODERATION_FOLDER = "moderation"
@@ -1202,7 +1462,7 @@ async def ban(ctx: commands.Context, member: discord.Member = None, *, reason: s
 	await ctx.message.delete()
 
 	# Check if the user has the admin role
-	has_role = any(role.id in ADMIN_ROLE_ID or role.id in SERVICER_ROLE_ID for role in ctx.author.roles)
+	has_role = is_staff(ctx.author, False, True, True)
 	if not has_role:
 		embed = discord.Embed(
 			title="❌ Permission Denied",
@@ -1317,12 +1577,12 @@ async def restart(ctx: commands.Context):
 	await ctx.message.delete()
 
 	# Check if the user has the "Administrator" or "Servicer" role
-	has_role = any(role.id in ADMIN_ROLE_ID or role.id in SERVICER_ROLE_ID for role in ctx.author.roles)
+	has_role = is_staff(ctx.author, False, True, True)
 	if not has_role:
 		embed = discord.Embed(
 			title="❌ Permission Denied",
 			description="> You need the `Administrator` role to restart the bot.",
-			color=discord.Color.red()
+			color=colors["red"]
 		)
 		embed.set_footer(text="This message was written by server staff.")
 		await ctx.send(f"### {ctx.author.mention}", embed=embed, delete_after=5)
@@ -1333,42 +1593,31 @@ async def restart(ctx: commands.Context):
 	embed = discord.Embed(
 		title="🔄 Restarting Bot",
 		description=f"> Bot is restarting... \n> **Triggered by:** {ctx.author.mention}",
-		color=discord.Color.orange()
+		color=colors["orange"]
 	)
 	embed.set_footer(text="Please wait for the bot to come back online.")
 	restart_message = await ctx.send(f"### {ctx.author.mention}", embed=embed)
 
 	logger.info(f"{ctx.author} triggered the bot restart.")
 
-	# Wait for 5 seconds before deleting the message
-	await asyncio.sleep(5)
+	# Wait for 3 seconds before deleting the message
+	await asyncio.sleep(3)
 	await restart_message.delete()
 
-	# Gracefully shut down before restarting
-	async def shutdown():
-		try:
-			print("Shutting down... Closing all connections.")
-			logger.info("Shutting down all connections before restart.")
-
-			# Close aiohttp session if it exists
-			session = bot.http._HTTPClient__session
-			if isinstance(session, aiohttp.ClientSession):
-				await session.close()
-				logger.info("Closed aiohttp session.")
-
-			await bot.close()
-			logger.info("Bot is now offline.")
-		except Exception as e:
-			logger.error(f"Error while shutting down: {e}")
-
-	await shutdown()
-
-	# Restart the bot safely
 	try:
-		os.execv(sys.executable, [sys.executable] + sys.argv)
+		# Gracefully close the bot
+		await bot.close()
+
+		# Restart the bot
+		python = sys.executable
+		os.execl(python, python, *sys.argv)
+
 	except Exception as e:
-		logger.error(f"Error restarting the bot: {e}")
-		print(f"Failed to restart: {e}")
+		logger.error(f"Failed to restart the bot: {e}")
+		embed = discord.Embed(title="❌ Restart Failed",
+							  description=f"> An error occurred while restarting the bot.\n> \n> `{str(e)}`",
+							  color=colors["red"])
+		await ctx.send(f"### {ctx.author.mention}", embed=embed, delete_after=10)
 
 
 # ======================================================================================================================================================================================
