@@ -27,13 +27,13 @@ Before you begin, ensure you have the following:
 2. Fill in the required fields:
    - **BOT_TOKEN**: Your bot token (from the Discord Developer Portal).
    - **GUILD_ID**: The ID of your Discord server.
-   - **MODMAIL_CATEGORY_ID**: The category ID where modmail threads should be created.
-   - **MOD_ROLE_ID**: Role ID that has access to modmail (e.g., `[123456789012345678]`).
-   - **MOD_ROLE_MENTION**: The mention string for the moderator role (e.g., `<@&ROLE_ID>`).
-   - **ADMIN_ROLE_ID**: The role ID for admin role (LIMIT TO ONE).
-   - **ADMIN_ROLE_MENTION**: Mention for the admin role (e.g., `<@&ROLE_ID>`).
-   - **WELCOME_CHANNEL**: The channel ID where welcome messages should be sent.
-   - **RULES_CHANNEL**: Mention string for your rules channel (e.g., `<#CHANNEL_ID>`).
+   - **RULES_CHANNEL_ID**: The category ID where modmail threads should be created.
+   - **WELCOME_CHANNEL_ID**: Role ID that has access to modmail (e.g., `[123456789012345678]`).
+   - **MOD_ROLE_ID**: The mention string for the moderator role (e.g., `<@&ROLE_ID>`).
+   - **MOD_ROLE_MENTION**: The role ID for admin role (LIMIT TO ONE).
+   - **ADMIN_ROLE_ID**: Mention for the admin role (e.g., `<@&ROLE_ID>`).
+   - **ADMIN_ROLE_MENTION**: The channel ID where welcome messages should be sent.
+   - **MODMAIL_CATEGORY_ID**: Mention string for your rules channel (e.g., `<#CHANNEL_ID>`).
    - **TEXT_LOG_CHANNEL_ID**: The channel ID for logging text messages.
    - **IMAGE_LOG_CHANNEL_ID**: The channel ID for logging image attachments.
    - **ACTIVITY_PING_ROLE_ID**: Role ID for users who will receive activity pings.
@@ -89,6 +89,8 @@ Before you begin, ensure you have the following:
    - `!member @user` - Shows user info (Mod or above only).
    - `!restart` - Safely restarts the bot (Admin or above only).
    - `!ping` - Displays bot latency (Admin or above only).
+   - `!warn` & `!warns` - Warns a member and allows you to view their warns (Mod or above only).
+   - `!mute` - Mutes a member and stores it with 'warns' (Mod or above only).
 
 ### **7. Customization & Setup**
    - Configurable via `config.json`.
