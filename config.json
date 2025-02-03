@@ -1,6 +1,8 @@
 {
     "BOT_TOKEN": "0",
     "GUILD_ID": 0,
+    "STATUS_TYPE": "",
+    "STATUS_TEXT": "",
     "RULES_CHANNEL_ID": 0,
     "WELCOME_CHANNEL_ID": 0,
     "MOD_ROLE_ID": [0],
@@ -8,8 +10,8 @@
     "ADMIN_ROLE_ID": [0],
     "ADMIN_ROLE_MENTION": "<@&0>",
     "MODMAIL_CATEGORY_ID": 0,
-    "TEXT_LOG_CHANNEL_ID": 0,
-    "IMAGE_LOG_CHANNEL_ID": 0,
+    "TEXT_LOG_CHANNEL_ID": null,
+    "IMAGE_LOG_CHANNEL_ID": null,
     "ACTIVITY_PING_ROLE_ID": 0,
     "SERVICER_ROLE_ID": [0]
 }

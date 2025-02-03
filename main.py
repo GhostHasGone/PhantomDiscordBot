@@ -13,11 +13,12 @@ import random
 import string
 import json
 import sys
+import time
 
 from discord.ext import commands
 
-VERSION = "1.1.6"
-VERSION_DATE = "February 2nd, 2025"
+VERSION = "1.1.7"
+VERSION_DATE = "February 3rd, 2025"
 
 # ======================================================================================================================================================================================
 # Important Stuff
@@ -30,6 +31,29 @@ except (FileNotFoundError, json.decoder.JSONDecodeError):
 	print('Error: "config.json" file not found or is incorrectly formatted.\nExiting...')
 	input()
 	sys.exit()
+
+AFK_FOLDER = "moderation"
+AFK_FILE = os.path.join(AFK_FOLDER, "afk_data.json")
+
+# Ensure AFK directory exists
+os.makedirs(AFK_FOLDER, exist_ok=True)
+
+# Initialize AFK data
+if not os.path.exists(AFK_FILE):
+	with open(AFK_FILE, "w") as f:
+		json.dump({}, f)
+
+afk_users = {}
+
+# Load AFK data from JSON file
+try:
+	with open(AFK_FILE, "r") as f:
+		afk_users = json.load(f)
+except FileNotFoundError:
+	afk_users = {}
+
+# ======================================================================================================================================================================================
+# Config Imports
 
 try:
 	BOT_TOKEN = config["BOT_TOKEN"]
@@ -52,6 +76,10 @@ try:
 	ACTIVITY_PING_ROLE_ID = config["ACTIVITY_PING_ROLE_ID"]
 
 	SERVICER_ROLE_ID = config["SERVICER_ROLE_ID"]
+
+	STATUS_TYPE = getattr(discord.ActivityType, config["STATUS_TYPE"].lower(), discord.ActivityType.playing)
+	STATUS_TEXT = config["STATUS_TEXT"]
+
 except KeyError:
 	print('Error: "config.json" file is missing required fields.\nExiting...')
 	input()
@@ -64,6 +92,9 @@ image_log_channel = None
 # Create a bot instance with a command prefix
 bot = commands.Bot(command_prefix="!", intents=discord.Intents.all())
 bot.remove_command("help")
+
+# ======================================================================================================================================================================================
+# Staff checks for commands
 
 def is_staff(member: discord.Member, has_mod: bool, has_admin: bool, has_servicer: bool) -> bool:
 	# Check if the member has admin permissions
@@ -90,7 +121,8 @@ async def on_ready():
 	global text_log_channel, image_log_channel
 
 	print(f"Bot is logged in as {bot.user}")
-	await bot.change_presence(activity=discord.Game(name="ModMail"))
+	activity = discord.Activity(type=STATUS_TYPE, name=STATUS_TEXT)
+	await bot.change_presence(activity=activity)
 
 	if TEXT_LOG_CHANNEL_ID is not None:
 		text_log_channel = bot.get_channel(TEXT_LOG_CHANNEL_ID)
@@ -265,7 +297,6 @@ def save_modmail_logs(modmail_logs):
 # Load active modmail from JSON
 active_modmail = load_modmail_logs()
 
-
 # ======================================================================================================================================================================================
 # Bot event for messages
 # Part One: Text-Logs Channel and Text Log File
@@ -291,9 +322,9 @@ async def on_message(message):
 			# Send embed in text-logs channel
 			await text_log_channel.send(embed=embed)
 
-	# ======================================================================================================================================================================================
-	# Bot event for messages
-	# Part Two: Image-Logs Channel and Image Log Folder
+# ======================================================================================================================================================================================
+# Bot event for messages
+# Part Two: Image-Logs Channel and Image Log Folder
 
 	# Ensure the images directory exists
 	image_folder = "logs/images"
@@ -319,6 +350,33 @@ async def on_message(message):
 				# Save the file with the new filename
 				await attachment.save(image_path)
 				logger.info(f"Image from {message.author} saved: {image_path}")
+
+# ======================================================================================================================================================================================
+# Checks for AFK
+
+	if str(message.author.id) in afk_users and not message.content.startswith("!afk"):
+		del afk_users[str(message.author.id)]
+		with open(AFK_FILE, "w") as f:
+			json.dump(afk_users, f)
+		embed = discord.Embed(title="Welcome Back", description=f"You are no longer AFK!",
+							  color=colors["green"])
+		view = DoneButton(message.author.id)
+		logger.info(f"{message.author.name} returned from being AFK.")
+		await message.channel.send(f"### {message.author.mention}", embed=embed, view=view)
+	elif str(message.author.id) in afk_users and message.content.startswith("!afk"):
+		logger.info(f"{message.author.name} tried to trigger 'AFK' while AFK")
+
+	for mention in message.mentions:
+		if str(mention.id) in afk_users:
+			afk_info = afk_users[str(mention.id)]
+			afk_time = int(time.time() - afk_info["time"])
+			embed = discord.Embed(title="AFK Notice", description=f"{mention.display_name} is currently AFK.",
+								  color=colors["orange"])
+			embed.add_field(name="Reason:", value=afk_info["reason"], inline=False)
+			embed.add_field(name="AFK Duration:", value=f"{afk_time} seconds", inline=False)
+			view = DoneButton(message.author.id)
+			logger.info(f"{message.author.name} tried reaching {mention.name} while they were AFK.")
+			await message.channel.send(f"### {message.author.mention}", embed=embed, view=view)
 
 	# ======================================================================================================================================================================================
 	# Bot event for messages
@@ -459,7 +517,7 @@ async def on_member_join(member: discord.Member):
 	try:
 		embed = discord.Embed(
 			title="🎉 Welcome!",
-			description=f"> Thank you for joining {member.guild.name}!\n> We're happy to get the chance to chat with you!\n> \n> - Make sure to check out the Rules:\n> {rules_channel}\n> \n> - Chat and Enjoy our wonderful server",
+			description=f"> Thank you for joining {member.guild.name}!\n> We're happy to get the chance to chat with you!\n> \n> - Make sure to check out the **Rules**\n> \n> - Chat and Enjoy our wonderful server",
 			color=colors["gold"]
 		)
 		embed.set_footer(
@@ -482,7 +540,7 @@ async def on_member_join(member: discord.Member):
 		description=(
 			f"> Hey {member.mention}, welcome to **{member.guild.name}**!\n"
 			f"> We're so excited to have you here!\n> \n"
-			f"> Please remember to read the Rules in {rules_channel}."
+			f"> Please remember to read the **Rules**."
 		),
 		color=colors["gold"]
 	)
@@ -652,7 +710,6 @@ async def on_message_edit(before: discord.Message, after: discord.Message):
 		else:
 			return
 
-
 # ======================================================================================================================================================================================
 # EVERYONE COMMANDS (Power Level 0)
 # ======================================================================================================================================================================================
@@ -675,7 +732,6 @@ class DoneButton(discord.ui.View):
 				"❌ You are not allowed to delete this message!", ephemeral=True
 			)
 
-
 # ======================================================================================================================================================================================
 # HELP MENU INFORMATION
 
@@ -684,6 +740,7 @@ HELP_DESCRIPTION = (
 	"> **`!help`** → Displays this help menu.\n"
 	"> **`!topic`** → Picks a fun discussion topic.\n"
 	"> **`!slap @user`** → Slap another user.\n"
+	"> **`!afk <reason>`** → Sets your afk.\n"
 	"\n"
 	"> **⚔️ Moderator Commands:**\n"
 	"> **`!version`** → Displays the bot version and release date.\n"
@@ -704,7 +761,6 @@ HELP_DESCRIPTION = (
 	"> Send '**contact**' in a DM to this bot to create a ModMail thread.\n"
 	"> If you already have an open thread, it will provide the link instead.\n"
 )
-
 
 # ======================================================================================================================================================================================
 # Help Command Embed
@@ -741,6 +797,31 @@ async def help_error(ctx, error):
 		await ctx.send(f"### {ctx.author.mention}", embed=embed, delete_after=5)
 		logger.info(f"{ctx.author} triggered the 'help' command in {ctx.channel}. Output not sent due to cooldown.")
 
+# ======================================================================================================================================================================================
+# AFK Command
+
+@bot.command()
+async def afk(ctx, *, reason: str = "No reason provided"):
+	user_id = str(ctx.author.id)
+	if user_id in afk_users:
+		afk_info = afk_users[user_id]
+		afk_time = int(time.time() - afk_info["time"])
+		embed = discord.Embed(title="Already AFK", description=f"You are already AFK!",
+							  color=colors["orange"])
+		embed.add_field(name="Reason:", value=afk_info["reason"], inline=False)
+		embed.add_field(name="AFK Duration:", value=f"{afk_time} seconds", inline=False)
+		view = DoneButton(ctx.author.id)
+		await ctx.send(f"### {ctx.author.mention}", embed=embed, view=view)
+		return
+
+	afk_users[user_id] = {"reason": reason, "time": time.time()}
+	with open(AFK_FILE, "w") as f:
+		json.dump(afk_users, f)
+	embed = discord.Embed(title="AFK Set", description=f"You are now AFK!", color=colors["blue"])
+	embed.add_field(name="Reason:", value=reason, inline=False)
+	view = DoneButton(ctx.author.id)
+	logger.info(f"{ctx.author.name} went AFK. Reason: '{reason}'")
+	await ctx.send(f"### {ctx.author.mention}", embed=embed, view=view)
 
 # ======================================================================================================================================================================================
 # Slap Command
@@ -785,7 +866,6 @@ async def slap(ctx: discord.ext.commands.Context, member: discord.Member = None)
 	# Log the command use
 	logger.info(f"{ctx.author} triggered the 'slap' command in {ctx.channel}. Output sent.")
 
-
 @slap.error
 async def slap_error(ctx, error):
 	await ctx.message.delete()
@@ -799,7 +879,6 @@ async def slap_error(ctx, error):
 		await ctx.send(f"### {ctx.author.mention}", embed=embed, delete_after=5)
 		logger.info(f"{ctx.author} triggered the 'slap' command in {ctx.channel}. Output not sent due to cooldown.")
 		return
-
 
 # ======================================================================================================================================================================================
 # Topic Command
@@ -839,7 +918,6 @@ async def topic(ctx: commands.Context):
 		logger.info(f"{ctx.author} triggered the topic command in {ctx.channel} (restarting). Output sent.")
 		current_index = 0  # Reset to the beginning
 
-
 @topic.error
 async def topic_error(ctx, error):
 	await ctx.message.delete()
@@ -853,7 +931,6 @@ async def topic_error(ctx, error):
 		await ctx.send(f"### {ctx.author.mention}", embed=embed, delete_after=5)
 		logger.info(f"{ctx.author} triggered the 'topic' command in {ctx.channel}. Output not sent due to cooldown.")
 		return
-
 
 # ======================================================================================================================================================================================
 # MODERATOR COMMANDS (Power Level 1)
@@ -930,7 +1007,6 @@ async def activity(ctx: commands.Context):
 	await ctx.send(f"### {activity_ping_role.mention} Hello!", embed=embed)
 	logger.info(f"{ctx.author} triggered the 'activity' command in {ctx.channel}. Activity role pinged.")
 
-
 # ======================================================================================================================================================================================
 # Bot Version Command
 
@@ -979,7 +1055,6 @@ async def version(ctx: discord.ext.commands.Context):
 
 	# Log the command use
 	logger.info(f"{ctx.author.mention} triggered the 'version' command in {ctx.channel}. Output sent.")
-
 
 # ======================================================================================================================================================================================
 # Member Info Command
@@ -1069,7 +1144,6 @@ async def member_error(ctx, error):
 		embed.set_footer(text="This message was written by server staff.")
 		await ctx.send(f"### {ctx.author.mention}", embed=embed, delete_after=5)
 		logger.info(f"{ctx.author} triggered 'member' in {ctx.channel}, but it's on cooldown.")
-
 
 # ======================================================================================================================================================================================
 # Say Command
@@ -1191,7 +1265,6 @@ async def warn(ctx: commands.Context, member: discord.Member = None, *, reason: 
 	view = DoneButton(ctx.author.id)
 	await ctx.send(f"### {ctx.author.mention}", embed=embed, view=view)
 	logger.info(f"{ctx.author} warned {member} for: {reason}")
-
 
 # ======================================================================================================================================================================================
 # Warns Command
@@ -1434,7 +1507,6 @@ MODERATION_FOLDER = "moderation"
 BAN_LOG_FILE = os.path.join(MODERATION_FOLDER, "bans.json")
 os.makedirs(MODERATION_FOLDER, exist_ok=True)
 
-
 # Function to load bans
 def load_bans():
 	if not os.path.exists(BAN_LOG_FILE):
@@ -1446,12 +1518,10 @@ def load_bans():
 	except json.JSONDecodeError:
 		return {}
 
-
 # Function to save bans
 def save_bans(ban_data):
 	with open(BAN_LOG_FILE, "w") as file:
 		json.dump(ban_data, file, indent=4)
-
 
 # ======================================================================================================================================================================================
 # Ban Command
@@ -1567,7 +1637,6 @@ async def ban(ctx: commands.Context, member: discord.Member = None, *, reason: s
 		await ctx.send(f"### {ctx.author.mention}", embed=embed, delete_after=10)
 		logger.error(f"Error while banning {member}: {e}")
 
-
 # ======================================================================================================================================================================================
 # Restart Bot
 
@@ -1618,7 +1687,6 @@ async def restart(ctx: commands.Context):
 							  color=colors["red"])
 		await ctx.send(f"### {ctx.author.mention}", embed=embed, delete_after=10)
 
-
 # ======================================================================================================================================================================================
 # Ping Command
 
@@ -1667,9 +1735,9 @@ async def ping(ctx: commands.Context):
 	embed.set_footer(text="This message was written by server staff.")
 
 	# Send the embed
-	await ctx.send(f"### {ctx.author.mention}", embed=embed, delete_after=10)
+	view = DoneButton(ctx.author.id)
+	await ctx.send(f"### {ctx.author.mention}", embed=embed, view=view)
 	logger.info(f"{ctx.author.mention} triggered the 'ping' command in {ctx.channel}. Output sent.")
-
 
 # ======================================================================================================================================================================================
 # Run the bot

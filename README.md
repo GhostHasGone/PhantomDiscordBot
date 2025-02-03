@@ -27,6 +27,8 @@ Before you begin, ensure you have the following:
 2. Fill in the required fields:
    - **BOT_TOKEN**: Your bot token (from the Discord Developer Portal).
    - **GUILD_ID**: The ID of your Discord server.
+   - **STATUS_TYPE**: Should be one of the following: "Playing", "Streaming", "Listening", "Watching", "Competing"
+   - **STATUS_TEXT**: The text that is combined with the status type (e.g., 'YouTube' to make 'Watching Youtube')
    - **RULES_CHANNEL_ID**: The category ID where modmail threads should be created.
    - **WELCOME_CHANNEL_ID**: Role ID that has access to modmail (e.g., `[123456789012345678]`).
    - **MOD_ROLE_ID**: The mention string for the moderator role (e.g., `<@&ROLE_ID>`).
@@ -82,6 +84,7 @@ Before you begin, ensure you have the following:
    - `!slap @user` - Posts a fun slap GIF.
    - `!topic` - Provides a discussion topic.
    - `!say <message>` - Allows authorized users to send bot messages (Mod or above only).
+   - `!afk <reason>` - sets the afk of a user, removes it when a message from user is sent.
 
 ### **6. Moderation Tools**
    - `!ban @user <reason>` - Bans users with proper role checks (Admin or above only).

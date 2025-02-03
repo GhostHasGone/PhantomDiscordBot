@@ -22,7 +22,8 @@ Discord Bot Features
    - `!version` - Displays bot version and release date (Mod only).
    - `!slap @user` - Posts a fun GIF.  
    - `!topic` - Provides a discussion topic.  
-   - `!say <message>` - Allows authorized users to send bot messages (Mod only).  
+   - `!say <message>` - Allows authorized users to send bot messages (Mod only).
+   - `!afk <reason>` - Sets the AFK for the user.
 
 6. **Moderation Tools**  
    - `!ban @user <reason>` - Bans users with proper role checks (Admin only).  
