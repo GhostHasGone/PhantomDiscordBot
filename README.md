@@ -80,20 +80,20 @@ Before you begin, ensure you have the following:
    - **Image Logs:** Stores images in a dedicated folder and the dedicated images channel.
 
 ### **5. Interactive Commands**
-   - `!version` - Displays bot version and release date (Mod or above only).
-   - `!slap @user` - Posts a fun slap GIF.
-   - `!topic` - Provides a discussion topic.
-   - `!say <message>` - Allows authorized users to send bot messages (Mod or above only).
-   - `!afk <reason>` - sets the afk of a user, removes it when a message from user is sent.
+   - `/version` - Displays bot version and release date (Mod or above only).
+   - `/slap @user` - Posts a fun slap GIF.
+   - `/topic` - Provides a discussion topic.
+   - `/say <message>` - Allows authorized users to send bot messages (Mod or above only).
+   - `/afk <reason>` - sets the afk of a user, removes it when a message from user is sent.
 
 ### **6. Moderation Tools**
-   - `!ban @user <reason>` - Bans users with proper role checks (Admin or above only).
-   - `!bans` - Retrieves ban records (Mod or above only).
-   - `!member @user` - Shows user info (Mod or above only).
-   - `!restart` - Safely restarts the bot (Admin or above only).
-   - `!ping` - Displays bot latency (Admin or above only).
-   - `!warn` & `!warns` - Warns a member and allows you to view their warns (Mod or above only).
-   - `!mute` - Mutes a member and stores it with 'warns' (Mod or above only).
+   - `/ban @user <reason>` - Bans users with proper role checks (Admin or above only).
+   - `/bans` - Retrieves ban records (Mod or above only).
+   - `/member @user` - Shows user info (Mod or above only).
+   - `/restart` - Safely restarts the bot (Admin or above only).
+   - `/ping` - Displays bot latency (Admin or above only).
+   - `/warn` & `/warns` - Warns a member and allows you to view their warns (Mod or above only).
+   - `/mute` - Mutes a member and stores it with 'warns' (Mod or above only).
 
 ### **7. Customization & Setup**
    - Configurable via `config.json`.
@@ -107,7 +107,7 @@ Before you begin, ensure you have the following:
 ### **Bot Doesn't Respond to Commands**
 1. Make sure the bot **has the correct permissions** in your Discord server.
 2. Ensure the bot **is online** and running in the terminal.
-3. Double-check the **command prefix** (default: `!`).
+3. Double-check the **command prefix** (default: `/`).
 4. Make sure **your role has permission** to use the command.
 
 ### **Modmail System Isn’t Working**
