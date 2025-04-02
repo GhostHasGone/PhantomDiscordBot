@@ -12,6 +12,7 @@ Before you begin, ensure you have the following:
 3. The necessary permissions in your Discord server to create channels, manage roles, and configure settings.
 4. Make sure that you have the permission roles that are below you also. (i.e. If you're the owner, you still need the designated Admin and Mod roles)
 5. Role Hierarchy: Everyone (Power Level 0), Mod (Power Level 1), Admin (Power Level 2), and Servicer (Power Level 3)
+
 ---
 
 ## **Step 1: Install Dependencies**
@@ -56,75 +57,82 @@ Before you begin, ensure you have the following:
    ```bash
    py main.py
    ```
-2. The bot should now start, logging its status in the terminal and logging files.
 
 ---
 
-## **Bot Features**
+# Bot Documentation
 
-### **1. Modmail System**
-   - Private messaging between members and staff.
-   - Automatically creates modmail threads under a specified category.
-   - Includes interactive buttons to resolve or close tickets.
-
-### **2. Welcome System**
-   - Sends a custom welcome message to new members in a designated channel.
-   - Logs when members join or leave.
-
-### **3. Role-Specific Commands**
-   - Restricts commands to authorized roles.
-   - Prevents misuse of admin-level features.
-
-### **4. Logging System**
-   - **Text Logs:** Saves messages to a log file, log channel, and the terminal.
-   - **Image Logs:** Stores images in a dedicated folder and the dedicated images channel.
-
-### **5. Interactive Commands**
-   - `/version` - Displays bot version and release date (Mod or above only).
-   - `/slap @user` - Posts a fun slap GIF.
-   - `/topic` - Provides a discussion topic.
-   - `/say <message>` - Allows authorized users to send bot messages (Mod or above only).
-   - `/afk <reason>` - sets the afk of a user, removes it when a message from user is sent.
-
-### **6. Moderation Tools**
-   - `/ban @user <reason>` - Bans users with proper role checks (Admin or above only).
-   - `/bans` - Retrieves ban records (Mod or above only).
-   - `/member @user` - Shows user info (Mod or above only).
-   - `/restart` - Safely restarts the bot (Admin or above only).
-   - `/ping` - Displays bot latency (Admin or above only).
-   - `/warn` & `/warns` - Warns a member and allows you to view their warns (Mod or above only).
-   - `/mute` - Mutes a member and stores it with 'warns' (Mod or above only).
-
-### **7. Customization & Setup**
-   - Configurable via `config.json`.
-   - One-click setup with `install_dependencies.bat`.
-   - Enhanced error handling to prevent crashes.
+## Bot Status
+The bot should now start, logging its status in the terminal and logging files.
 
 ---
 
-## **Troubleshooting**
+## Bot Features
 
-### **Bot Doesn't Respond to Commands**
-1. Make sure the bot **has the correct permissions** in your Discord server.
-2. Ensure the bot **is online** and running in the terminal.
-3. Double-check the **command prefix** (default: `/`).
-4. Make sure **your role has permission** to use the command.
+### 1. Modmail System
+- Private messaging between members and staff.
+- Automatically creates modmail threads under a specified category.
+- Includes interactive buttons to resolve or close tickets.
 
-### **Modmail System Isn’t Working**
-- Ensure the **modmail category exists** and matches the `MODMAIL_CATEGORY_ID` in `config.json`.
-- The bot **must have permission** to create channels.
+### 2. Welcome System
+- Sends a custom welcome message to new members in a designated channel.
+- Logs when members join or leave.
 
-### **Logging Issues**
-- If text or image logs **are not working**, check:
-  - That `TEXT_LOG_CHANNEL_ID` and `IMAGE_LOG_CHANNEL_ID` are **not set to 0** if logging is required.
-  - The bot **has permission** to send messages in the logging channels.
+### 3. Role-Specific Commands
+- Restricts commands to authorized roles.
+- Prevents misuse of admin-level features.
 
-### **Other Errors**
-- If you see errors in the terminal, **restart the bot** and check `logs.txt` for details.
+### 4. Logging System
+- **Text Logs:** Saves messages to a log file, log channel, and the terminal.
+- **Image Logs:** Stores images in a dedicated folder and the dedicated images channel.
+
+### 5. Interactive Commands
+- `!version` - Displays bot version and release date (Mod or above only).
+- `!slap @user` - Posts a fun slap GIF.
+- `!topic` - Provides a discussion topic.
+- `!say <message>` - Allows authorized users to send bot messages (Mod or above only).
+- `!afk <reason>` - Sets the AFK status of a user, removes it when a message from the user is sent.
+
+### 6. Moderation Tools
+- `!ban @user <reason>` - Bans users with proper role checks (Admin or above only).
+- `!bans` - Retrieves ban records (Mod or above only).
+- `!member @user` - Shows user info (Mod or above only).
+- `!restart` - Safely restarts the bot (Admin or above only).
+- `!ping` - Displays bot latency (Admin or above only).
+- `!warn & !warns` - Warns a member and allows you to view their warns (Mod or above only).
+- `!mute` - Mutes a member and stores it with 'warns' (Mod or above only).
+
+### 7. Customization & Setup
+- Configurable via `config.json`.
+- One-click setup with `install_dependencies.bat`.
+- Enhanced error handling to prevent crashes.
+
+---
+
+## Troubleshooting
+
+### Bot Doesn't Respond to Commands
+- Make sure the bot has the correct permissions in your Discord server.
+- Ensure the bot is online and running in the terminal.
+- Double-check the command prefix (default: `!`).
+- Make sure your role has permission to use the command.
+
+### Modmail System Isn’t Working
+- Ensure the modmail category exists and matches the `MODMAIL_CATEGORY_ID` in `config.json`.
+- The bot must have permission to create channels.
+
+### Logging Issues
+If text or image logs are not working, check:
+- That `TEXT_LOG_CHANNEL_ID` and `IMAGE_LOG_CHANNEL_ID` are not set to `0` if logging is required.
+- The bot has permission to send messages in the logging channels.
+
+### Other Errors
+- If you see errors in the terminal, restart the bot and check `logs.txt` for details.
 - If problems persist, contact **GhostHasGone** on Discord.
 
 ---
 
-## **Credits**
+## Credits
 - **Developed by:** GhostHasGone  
-- **Special Thanks:** Saucywan  
+- **Special Thanks:** Saucywan
+
